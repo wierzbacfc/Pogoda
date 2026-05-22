@@ -332,7 +332,6 @@ const App = {
       UI.showSkeleton(false);
       App.renderActiveWeather();
       App.updateDotsIndicator();
-      UI.showToast(`Dodano ${newCity.name}`, 'success');
     });
   },
 

@@ -69,9 +69,11 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: -1;
+  z-index: 0;
   transition: background var(--transition-bg);
   background: linear-gradient(160deg, #fef9c3 0%, #fde68a 40%, #fed7aa 100%); /* Default sunny_day */
+  overflow: hidden;
+  pointer-events: none;
 }
 
 /* Main wrapper that mimics a mobile device on larger screens */
@@ -84,7 +86,15 @@ body {
   display: flex;
   flex-direction: column;
   background: transparent;
+  isolation: isolate;
   z-index: 1; /* Explicitly establish a stacking context for app-bg */
+}
+
+.app-content-wrapper,
+.bottom-nav,
+.toast-container {
+  position: relative;
+  z-index: 2;
 }
 
 /* On desktop, give it an app-like frame */
@@ -509,7 +519,7 @@ body {
 /* Detail Section Grid */
 .details-grid {
   display: grid;
-  grid-template-cols: 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
 
@@ -1152,7 +1162,8 @@ body {
   height: 100%;
   overflow: hidden;
   pointer-events: none;
-  z-index: 0;
+  z-index: 1;
+  opacity: 0.95;
 }
 
 /* ---- RAIN ---- */

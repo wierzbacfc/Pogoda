@@ -143,6 +143,9 @@ const UI = {
     effectsEl.className = 'weather-effects';
 
     const effectType = getWeatherEffectType(weathercode, isDay);
+    effectsEl.dataset.effect = effectType;
+    effectsEl.dataset.weatherCode = String(weathercode);
+    effectsEl.dataset.isDay = String(Boolean(isDay));
 
     if (effectType === 'rain' || effectType === 'storm') {
       // Create falling rain lines
