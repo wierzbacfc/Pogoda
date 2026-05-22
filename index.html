@@ -22,7 +22,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0..1,0" rel="stylesheet">
 
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=27">
 </head>
 <body>
 
@@ -41,8 +41,6 @@
          ========================================================================== -->
     <div id="screen-weather" class="app-content-wrapper">
       
-      <!-- Top bar removed for a cleaner look -->
-
       <div class="app-content pb-nav">
         
         <!-- SKELETON LOADER (Displayed during weather loading sequence) -->
@@ -89,7 +87,6 @@
 
             </div>
           </section>
-
 
           <!-- Hourly Forecast horizontal scroll panel -->
           <section class="hourly-container">
@@ -166,11 +163,6 @@
 
         </div>
 
-        <!-- Dots indicator for swiping cities -->
-        <div id="dots-container" class="dots-indicator">
-          <!-- Dynamically populated circles -->
-        </div>
-
       </div>
     </div>
 
@@ -185,13 +177,19 @@
           <span class="material-symbols-outlined">arrow_back</span>
         </button>
         <h1>Moje miasta</h1>
-        <div style="width: 40px;"></div> <!-- Center title balancing spacer -->
+        <div style="width: 40px;"></div>
       </header>
 
-      <div class="app-content pb-nav pt-header">
+      <div class="app-content pb-city-actions pt-header">
         <section id="city-list-container" class="city-list">
           <!-- Dynamically populated city cards list -->
         </section>
+      </div>
+
+      <div class="city-add-bar">
+        <button id="btn-add-city-from-list" class="city-add-btn" aria-label="Dodaj miasto" onclick="App.navigateTo('search')">
+          <span class="material-symbols-outlined">add</span>
+        </button>
       </div>
 
     </div>
@@ -234,7 +232,7 @@
           <input type="text" id="city-search-input" class="search-input" placeholder="Wpisz nazwę miasta..." autocomplete="off">
           <div id="search-input-spinner" class="search-spinner"></div>
         </div>
-        <button id="btn-cancel-search" class="search-cancel-btn">Anuluj</button>
+        <button id="btn-cancel-search" class="search-cancel-btn" onclick="App.navigateTo('city-list')">Anuluj</button>
       </div>
     </div>
 
@@ -243,32 +241,24 @@
       <!-- Toast markup injected dynamically -->
     </div>
 
-    <!-- Bottom Navigation Bar -->
-    <nav class="bottom-nav">
-      <button class="nav-item active" id="nav-weather" aria-label="Pogoda">
-        <span class="material-symbols-outlined">cloud</span>
-        <span class="nav-label">Pogoda</span>
-      </button>
-      <button class="nav-item" id="nav-cities" aria-label="Miasta">
-        <span class="material-symbols-outlined">list</span>
-        <span class="nav-label">Miasta</span>
-      </button>
-      <button class="nav-item" id="nav-add-city" aria-label="Dodaj">
-        <span class="material-symbols-outlined">add_circle</span>
-        <span class="nav-label">Dodaj</span>
-      </button>
-    </nav>
+    <!-- City swipe position indicator -->
+    <div id="dots-container" class="dots-indicator">
+      <!-- Dynamically populated city position -->
+    </div>
+    <button id="btn-open-cities" class="weather-cities-btn" aria-label="Przejdź do listy miast">
+      <span class="material-symbols-outlined">list</span>
+    </button>
 
   </main>
 
   <!-- PWA, Storage & Core JS script tags -->
-  <script src="js/storage.js"></script>
-  <script src="js/weather-codes.js"></script>
-  <script src="js/geo.js"></script>
-  <script src="js/api.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/pwa.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/storage.js?v=27"></script>
+  <script src="js/weather-codes.js?v=27"></script>
+  <script src="js/geo.js?v=27"></script>
+  <script src="js/api.js?v=27"></script>
+  <script src="js/ui.js?v=27"></script>
+  <script src="js/pwa.js?v=27"></script>
+  <script src="js/app.js?v=27"></script>
 
 </body>
 </html>

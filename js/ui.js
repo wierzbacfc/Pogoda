@@ -97,6 +97,11 @@ const UI = {
   // Screen views triggers
   showScreen(viewName) {
     const views = ['weather', 'city-list', 'search'];
+    const dots = document.getElementById('dots-container');
+    if (dots) dots.classList.toggle('hidden', viewName !== 'weather');
+    const openCitiesBtn = document.getElementById('btn-open-cities');
+    if (openCitiesBtn) openCitiesBtn.classList.toggle('hidden', viewName !== 'weather');
+
     views.forEach(v => {
       const el = document.getElementById(`screen-${v}`);
       if (el) {
@@ -539,30 +544,55 @@ const UI = {
     if (visibilityDesc) visibilityDesc.textContent = visText;
   },
 
-  renderDots(count, activeIndex) {
+  renderDots(cities, activeIndex, onSelect) {
     const container = document.getElementById('dots-container');
     if (!container) return;
     container.innerHTML = '';
 
-    for (let i = 0; i < count; i++) {
-      const dot = document.createElement('div');
-      dot.className = `dot ${i === activeIndex ? 'active' : ''}`;
-      container.appendChild(dot);
+    if (!cities || cities.length === 0) return;
+
+    const track = document.createElement('div');
+    track.className = 'city-pager-track';
+
+    cities.forEach((city, index) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = `city-pager-item ${index === activeIndex ? 'active' : ''}`;
+      item.setAttribute('aria-label', `Pokaż miasto ${city.name}`);
+      item.textContent = city.isGps && city.subtitle && city.subtitle !== 'Brak uprawnień GPS'
+        ? city.subtitle
+        : city.name;
+      item.addEventListener('click', () => {
+        if (index !== activeIndex && typeof onSelect === 'function') {
+          onSelect(index);
+        }
+      });
+      track.appendChild(item);
+    });
+
+    container.appendChild(track);
+
+    const activeItem = track.querySelector('.city-pager-item.active');
+    if (activeItem) {
+      requestAnimationFrame(() => {
+        activeItem.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      });
     }
   },
 
   // 2. Ekran 2 — Moje Miasta View
-  renderCityList(cities, weatherMap, prefs, onSelect, onDelete) {
+  renderCityList(cities, weatherMap, prefs, activeIndex, onSelect, onDelete) {
     const listContainer = document.getElementById('city-list-container');
     if (!listContainer) return;
     listContainer.innerHTML = '';
 
     cities.forEach((city, index) => {
       const wrapper = document.createElement('div');
-      wrapper.className = 'city-card-wrapper';
+      wrapper.className = `city-card-wrapper ${index === activeIndex ? 'active' : ''}`;
 
       const card = document.createElement('button');
       card.className = 'city-card';
+      card.setAttribute('aria-pressed', index === activeIndex ? 'true' : 'false');
 
       // Load card values if weather is cached/fetched
       const weather = weatherMap.get(city.id);
@@ -608,7 +638,7 @@ const UI = {
         <div class="city-card-info">
           ${gpsMarker}
           <div class="city-card-names">
-            <span class="city-card-title">${city.name}</span>
+            <span class="city-card-title">${city.name}${index === activeIndex ? ' <span class="city-card-active-label">Teraz</span>' : ''}</span>
             <span class="city-card-subtitle">${subtitle}</span>
           </div>
         </div>
@@ -722,6 +752,7 @@ const UI = {
       
       const item = document.createElement('li');
       item.className = 'search-result-item';
+      if (isAlreadyAdded) item.classList.add('already-added');
       
       const details = res.admin1 ? `${res.admin1}, ${res.country}` : res.country;
 
@@ -736,7 +767,7 @@ const UI = {
       `;
 
       item.addEventListener('click', () => {
-        onAddCity(res);
+        if (!isAlreadyAdded) onAddCity(res);
       });
 
       resultsContainer.appendChild(item);

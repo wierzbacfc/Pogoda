@@ -255,6 +255,7 @@ const App = {
       this.state.cities, 
       this.state.weatherMap, 
       this.state.prefs, 
+      this.state.activeCityIndex,
       this.handleSelectCity.bind(this),
       this.handleDeleteCity.bind(this)
     );
@@ -279,6 +280,33 @@ const App = {
     this.renderActiveWeather();
     this.updateDotsIndicator();
     this.navigateTo('weather');
+  },
+
+  handleSwipeCity(index, direction) {
+    const wrapper = document.getElementById('weather-content-wrapper');
+    if (!wrapper) {
+      this.handleSelectCity(index);
+      return;
+    }
+
+    const outClass = direction === 'next' ? 'weather-swipe-out-left' : 'weather-swipe-out-right';
+    const inClass = direction === 'next' ? 'weather-swipe-in-right' : 'weather-swipe-in-left';
+
+    wrapper.classList.remove('weather-swipe-out-left', 'weather-swipe-out-right', 'weather-swipe-in-left', 'weather-swipe-in-right');
+    wrapper.classList.add(outClass);
+
+    window.setTimeout(() => {
+      this.state.activeCityIndex = index;
+      this.saveStateToStorage();
+      this.renderActiveWeather();
+      this.updateDotsIndicator();
+
+      wrapper.classList.remove(outClass);
+      wrapper.classList.add(inClass);
+      window.setTimeout(() => {
+        wrapper.classList.remove(inClass);
+      }, 260);
+    }, 150);
   },
 
   handleDeleteCity(index) {
@@ -323,24 +351,28 @@ const App = {
     App.state.activeCityIndex = App.state.cities.length - 1; // Make it active
     App.saveStateToStorage();
 
-    // Navigate immediately to refresh and download weather data
-    App.navigateTo('weather');
-    UI.showSkeleton(true);
+    App.navigateTo('city-list');
+    App.renderCitiesList();
     
     App.fetchWeatherForCity(newCity).then(() => {
-      UI.showSkeleton(false);
-      App.renderActiveWeather();
+      App.renderCitiesList();
       App.updateDotsIndicator();
     });
   },
 
   updateDotsIndicator() {
-    UI.renderDots(this.state.cities.length, this.state.activeCityIndex);
+    UI.renderDots(
+      this.state.cities,
+      this.state.activeCityIndex,
+      this.handleSelectCity.bind(this)
+    );
   },
 
   navigateTo(view) {
     this.state.currentView = view;
     UI.showScreen(view);
+    const openCitiesBtn = document.getElementById('btn-open-cities');
+    if (openCitiesBtn) openCitiesBtn.classList.toggle('hidden', view !== 'weather');
 
     if (view === 'city-list') {
       this.renderCitiesList();
@@ -357,31 +389,17 @@ const App = {
   },
 
   bindEvents() {
-    // Bottom Navigation Bar
-    const navWeatherBtn = document.getElementById('nav-weather');
-    if (navWeatherBtn) {
-      navWeatherBtn.addEventListener('click', () => {
-        this.navigateTo('weather');
-        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        navWeatherBtn.classList.add('active');
-      });
-    }
-
-    const navCitiesBtn = document.getElementById('nav-cities');
-    if (navCitiesBtn) {
-      navCitiesBtn.addEventListener('click', () => {
+    const openCitiesBtn = document.getElementById('btn-open-cities');
+    if (openCitiesBtn) {
+      openCitiesBtn.addEventListener('click', () => {
         this.navigateTo('city-list');
-        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        navCitiesBtn.classList.add('active');
       });
     }
 
-    const navAddCityBtn = document.getElementById('nav-add-city');
-    if (navAddCityBtn) {
-      navAddCityBtn.addEventListener('click', () => {
+    const addCityFromListBtn = document.getElementById('btn-add-city-from-list');
+    if (addCityFromListBtn) {
+      addCityFromListBtn.addEventListener('click', () => {
         this.navigateTo('search');
-        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        navAddCityBtn.classList.add('active');
       });
     }
 
@@ -390,19 +408,13 @@ const App = {
     if (backToWeatherBtn) {
       backToWeatherBtn.addEventListener('click', () => {
         this.navigateTo('weather');
-        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        const navWeather = document.getElementById('nav-weather');
-        if (navWeather) navWeather.classList.add('active');
       });
     }
 
     const cancelSearchBtn = document.getElementById('btn-cancel-search');
     if (cancelSearchBtn) {
       cancelSearchBtn.addEventListener('click', () => {
-        this.navigateTo('weather');
-        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        const navWeather = document.getElementById('nav-weather');
-        if (navWeather) navWeather.classList.add('active');
+        this.navigateTo('city-list');
       });
     }
 
@@ -440,7 +452,25 @@ const App = {
     const weatherScreen = document.getElementById('screen-weather');
     let touchStartX = 0;
     let touchStartY = 0;
+    let pointerStartX = 0;
+    let pointerStartY = 0;
+    let pointerTracking = false;
     const swipeMinDelta = 50;
+
+    const shouldIgnoreCitySwipe = (target) => {
+      return target.closest('#hourly-scroll-container') || target.closest('#dots-container');
+    };
+
+    const handleCitySwipe = (deltaX, deltaY, target) => {
+      if (shouldIgnoreCitySwipe(target)) return;
+      if (Math.abs(deltaY) >= 50 || Math.abs(deltaX) <= swipeMinDelta) return;
+
+      if (deltaX > 0 && this.state.activeCityIndex < this.state.cities.length - 1) {
+        this.handleSwipeCity(this.state.activeCityIndex + 1, 'next');
+      } else if (deltaX < 0 && this.state.activeCityIndex > 0) {
+        this.handleSwipeCity(this.state.activeCityIndex - 1, 'prev');
+      }
+    };
 
     if (weatherScreen) {
       weatherScreen.addEventListener('touchstart', (e) => {
@@ -450,27 +480,26 @@ const App = {
 
       weatherScreen.addEventListener('touchend', (e) => {
         const deltaX = touchStartX - e.changedTouches[0].clientX;
-        const deltaY = Math.abs(touchStartY - e.changedTouches[0].clientY);
-
-        // Ignore swipe if we are inside scrollable hourly container (to allow local scrolling)
-        const isHourlyScroll = e.target.closest('#hourly-scroll-container');
-        if (isHourlyScroll) return;
-
-        // Verify it was mostly a horizontal gesture (low vertical slope)
-        if (deltaY < 50) {
-          if (deltaX > swipeMinDelta) {
-            // Swiped left -> show next city
-            if (this.state.activeCityIndex < this.state.cities.length - 1) {
-              this.handleSelectCity(this.state.activeCityIndex + 1);
-            }
-          } else if (deltaX < -swipeMinDelta) {
-            // Swiped right -> show previous city
-            if (this.state.activeCityIndex > 0) {
-              this.handleSelectCity(this.state.activeCityIndex - 1);
-            }
-          }
-        }
+        const deltaY = touchStartY - e.changedTouches[0].clientY;
+        handleCitySwipe(deltaX, deltaY, e.target);
       }, { passive: true });
+
+      weatherScreen.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'touch') return;
+        pointerTracking = true;
+        pointerStartX = e.clientX;
+        pointerStartY = e.clientY;
+      });
+
+      weatherScreen.addEventListener('pointerup', (e) => {
+        if (!pointerTracking || e.pointerType === 'touch') return;
+        pointerTracking = false;
+        handleCitySwipe(pointerStartX - e.clientX, pointerStartY - e.clientY, e.target);
+      });
+
+      weatherScreen.addEventListener('pointercancel', () => {
+        pointerTracking = false;
+      });
     }
   },
 
