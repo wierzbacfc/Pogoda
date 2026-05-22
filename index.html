@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Pogoda PWA</title>
+  
+  <!-- PWA Manifest & Icons -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#fffdf7">
+  
+  <!-- iOS Safari PWA support -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Pogoda">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+
+  <!-- Google Fonts & Material Symbols -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0..1,0" rel="stylesheet">
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Main device container -->
+  <main class="app-container">
+    
+    <!-- Dynamic gradient tło -->
+    <div class="app-bg">
+      <div id="weather-effects" class="weather-effects"></div>
+    </div>
+    
+    <!-- Removed offline banner -->
+
+    <!-- ==========================================================================
+         EKRAN 1 — POGODA (GŁÓWNY WIDOK)
+         ========================================================================== -->
+    <div id="screen-weather" class="app-content-wrapper">
+      
+      <!-- Top bar removed for a cleaner look -->
+
+      <div class="app-content pb-nav">
+        
+        <!-- SKELETON LOADER (Displayed during weather loading sequence) -->
+        <div id="weather-skeleton-wrapper" class="skeleton-loader">
+          <div class="skeleton-item skeleton-hero"></div>
+          <div class="skeleton-item skeleton-card"></div>
+          <div class="skeleton-item skeleton-card" style="height: 150px;"></div>
+          <div class="skeleton-item skeleton-card" style="height: 200px;"></div>
+        </div>
+
+        <!-- ACTUAL WEATHER LAYOUT CONTENT -->
+        <div id="weather-content-wrapper" class="hidden" style="display: flex; flex-direction: column; gap: 24px;">
+          
+          <!-- Hero weather details -->
+          <section class="hero-section">
+            <div class="hero-location-wrapper">
+              <span class="material-symbols-outlined" id="hero-location-icon" style="display: none;">location_on</span>
+              <h1 id="weather-header-title" class="hero-city-name">Ładowanie...</h1>
+            </div>
+
+            <div class="hero-tiles">
+
+              <!-- Left tile: Temperature -->
+              <div class="glass-panel hero-tile hero-tile-temp">
+                <span id="hero-temp" class="hero-temp">--°</span>
+                <div class="hero-feels-like" id="hero-feels-like">Odczuwalna --°</div>
+              </div>
+
+              <!-- Right tile: Weather info -->
+              <div class="glass-panel hero-tile hero-tile-info">
+                <div class="hero-desc-wrapper">
+                  <span id="hero-icon" class="hero-icon" aria-hidden="true">☀️</span>
+                  <div class="hero-desc" id="hero-desc">--</div>
+                </div>
+                <div class="hero-meta-row">
+                  <span id="hero-temp-max">Max: --°</span>
+                  <span id="hero-temp-min">Min: --°</span>
+                </div>
+                <div class="hero-sun-row">
+                  <span class="sun-item"><span class="material-symbols-outlined icon-sun" style="font-size:18px;vertical-align:-3px;color:#eab308;margin-right:2px;">light_mode</span><span id="hero-sunrise">--:--</span></span>
+                  <span class="sun-item"><span class="material-symbols-outlined icon-moon" style="font-size:18px;vertical-align:-3px;color:#64748b;margin-right:2px;">nights_stay</span><span id="hero-sunset">--:--</span></span>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+
+          <!-- Hourly Forecast horizontal scroll panel -->
+          <section class="hourly-container">
+            <div id="hourly-scroll-container" class="hourly-scroll">
+              <!-- Dynamically populated hourly list -->
+            </div>
+          </section>
+
+          <!-- 14-Day Forecast panel -->
+          <section class="glass-panel">
+            <div class="forecast-header">
+              <span class="material-symbols-outlined">calendar_month</span>
+              <h2>Prognoza 14-dniowa</h2>
+            </div>
+            <div id="forecast-list-container" class="forecast-list">
+              <!-- Dynamically populated daily list -->
+            </div>
+          </section>
+
+          <!-- Weather details metrics grid -->
+          <div class="details-grid">
+            
+            <!-- Sun metric (Sunrise/Sunset) -->
+            <div class="glass-panel detail-card">
+              <div class="detail-header">
+                <span class="material-symbols-outlined" style="color: var(--accent-orange);">wb_twilight</span>
+                <span>Słońce</span>
+              </div>
+              <div id="details-sunrise" class="detail-value">--:--</div>
+              <div id="details-sunset" class="detail-desc">Zachód: --:--</div>
+            </div>
+
+            <!-- Wind metric -->
+            <div class="glass-panel detail-card">
+              <div class="detail-header">
+                <span class="material-symbols-outlined" style="color: var(--accent-blue);">air</span>
+                <span>Wiatr</span>
+              </div>
+              <div id="details-wind-speed" class="detail-value">-- km/h</div>
+              <div id="details-wind-dir" class="detail-desc">--</div>
+            </div>
+
+            <!-- Humidity metric -->
+            <div class="glass-panel detail-card">
+              <div class="detail-header">
+                <span class="material-symbols-outlined" style="color: var(--accent-rain);">humidity_percentage</span>
+                <span>Wilgotność</span>
+              </div>
+              <div id="details-humidity" class="detail-value">--%</div>
+              <div id="details-dew-point" class="detail-desc">Punkt rosy --°</div>
+            </div>
+
+            <!-- UV Index metric -->
+            <div class="glass-panel detail-card">
+              <div class="detail-header">
+                <span class="material-symbols-outlined" style="color: var(--accent-yellow);">wb_sunny</span>
+                <span>Indeks UV</span>
+              </div>
+              <div id="details-uv-index" class="detail-value">--</div>
+              <div id="details-uv-desc" class="detail-desc">--</div>
+            </div>
+
+            <!-- Visibility metric -->
+            <div class="glass-panel detail-card span-2">
+              <div class="detail-header">
+                <span class="material-symbols-outlined" style="color: var(--accent-teal);">visibility</span>
+                <span>Widoczność</span>
+              </div>
+              <div id="details-visibility" class="detail-value">-- km</div>
+              <div id="details-visibility-desc" class="detail-desc">--</div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Dots indicator for swiping cities -->
+        <div id="dots-container" class="dots-indicator">
+          <!-- Dynamically populated circles -->
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ==========================================================================
+         EKRAN 2 — LISTA MIAST (MOJE MIASTA)
+         ========================================================================== -->
+    <div id="screen-city-list" class="app-content-wrapper hidden">
+      
+      <!-- Top Bar City List Screen -->
+      <header class="app-header">
+        <button id="btn-back-to-weather" class="header-btn" aria-label="Wróć do pogody">
+          <span class="material-symbols-outlined">arrow_back</span>
+        </button>
+        <h1>Moje miasta</h1>
+        <div style="width: 40px;"></div> <!-- Center title balancing spacer -->
+      </header>
+
+      <div class="app-content pb-nav pt-header">
+        <section id="city-list-container" class="city-list">
+          <!-- Dynamically populated city cards list -->
+        </section>
+      </div>
+
+    </div>
+
+    <!-- ==========================================================================
+         EKRAN 3 — WYSZUKIWANIE MIAST
+         ========================================================================== -->
+    <div id="screen-search" class="app-content-wrapper hidden">
+      
+      <!-- Top Bar Search Screen -->
+      <header class="app-header">
+        <div style="width: 40px;"></div>
+        <h1>Dodaj miasto</h1>
+        <div style="width: 40px;"></div>
+      </header>
+
+      <div class="app-content pb-nav pt-header">
+        
+        <!-- Live search results -->
+        <section class="search-results-section">
+          <h2 class="search-results-title">Wyniki wyszukiwania</h2>
+          <ul id="search-results-list" class="search-results-list">
+            <!-- Dynamically populated geocoding list -->
+          </ul>
+        </section>
+
+        <!-- Empty search/welcome hint state inside geocoding screen -->
+        <div id="search-state-container" class="state-container">
+          <span class="material-symbols-outlined state-icon">travel_explore</span>
+          <span class="state-title">Znajdź miasto</span>
+          <span class="state-desc">Wpisz nazwę polskiego lub zagranicznego miasta, aby sprawdzić i zapisać prognozę pogody.</span>
+        </div>
+
+      </div>
+
+      <!-- Fixed bottom layout bar for search inputs -->
+      <div class="search-bar-fixed">
+        <div class="search-input-wrapper">
+          <span class="material-symbols-outlined search-input-icon">search</span>
+          <input type="text" id="city-search-input" class="search-input" placeholder="Wpisz nazwę miasta..." autocomplete="off">
+          <div id="search-input-spinner" class="search-spinner"></div>
+        </div>
+        <button id="btn-cancel-search" class="search-cancel-btn">Anuluj</button>
+      </div>
+    </div>
+
+    <!-- Global Floating Toast Notification Container -->
+    <div id="toast-container" class="toast-container">
+      <!-- Toast markup injected dynamically -->
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+      <button class="nav-item active" id="nav-weather" aria-label="Pogoda">
+        <span class="material-symbols-outlined">cloud</span>
+        <span class="nav-label">Pogoda</span>
+      </button>
+      <button class="nav-item" id="nav-cities" aria-label="Miasta">
+        <span class="material-symbols-outlined">list</span>
+        <span class="nav-label">Miasta</span>
+      </button>
+      <button class="nav-item" id="nav-add-city" aria-label="Dodaj">
+        <span class="material-symbols-outlined">add_circle</span>
+        <span class="nav-label">Dodaj</span>
+      </button>
+    </nav>
+
+  </main>
+
+  <!-- PWA, Storage & Core JS script tags -->
+  <script src="js/storage.js"></script>
+  <script src="js/weather-codes.js"></script>
+  <script src="js/geo.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/pwa.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>

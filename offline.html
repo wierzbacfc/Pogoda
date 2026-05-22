@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Brak połączenia — Pogoda</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(160deg, #fef9c3 0%, #fde68a 40%, #fed7aa 100%);
+      color: #1a1f2e;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .offline-card {
+      width: 100%;
+      max-width: 400px;
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 32px 24px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .icon {
+      font-size: 56px;
+      color: #5a6478;
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #1a1f2e;
+    }
+    p {
+      font-size: 14px;
+      color: #5a6478;
+      line-height: 1.5;
+    }
+    button {
+      margin-top: 8px;
+      background: #2d7dd2;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(45, 125, 210, 0.2);
+      transition: all 220ms ease;
+    }
+    button:hover {
+      transform: scale(1.02);
+      box-shadow: 0 6px 16px rgba(45, 125, 210, 0.3);
+    }
+    button:active {
+      transform: scale(0.98);
+    }
+  </style>
+</head>
+<body>
+
+  <main class="offline-card">
+    <span class="material-symbols-outlined icon">wifi_off</span>
+    <h1>Jesteś offline</h1>
+    <p>Brak połączenia z siecią internetową oraz brak zapisanej prognozy pogody w pamięci podręcznej Twojego urządzenia.</p>
+    <button onclick="window.location.reload()">Spróbuj ponownie</button>
+  </main>
+
+</body>
+</html>

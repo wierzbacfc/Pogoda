@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+
+<html lang="pl"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Search City - Weather App</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed": "#001c39",
+                        "on-tertiary-fixed-variant": "#004c6b",
+                        "on-secondary-fixed-variant": "#00504b",
+                        "inverse-primary": "#a4c9ff",
+                        "surface-variant": "#e0e3e6",
+                        "surface-dim": "#d8dadd",
+                        "on-tertiary-fixed": "#001e2d",
+                        "bg-surface": "#ffffff",
+                        "tertiary": "#006389",
+                        "text-tertiary": "#9aa3b2",
+                        "primary-fixed": "#d4e3ff",
+                        "on-tertiary": "#ffffff",
+                        "text-primary": "#1a1f2e",
+                        "accent-uv-extreme": "#9b44c8",
+                        "surface-container-highest": "#e0e3e6",
+                        "on-secondary-container": "#00716a",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed": "#c6e7ff",
+                        "tertiary-container": "#2c7ca5",
+                        "surface-container-low": "#f2f4f7",
+                        "surface-container-high": "#e6e8eb",
+                        "accent-red": "#e05c2a",
+                        "primary-container": "#2276cb",
+                        "error": "#ba1a1a",
+                        "on-surface": "#191c1e",
+                        "on-surface-variant": "#414752",
+                        "tertiary-fixed-dim": "#87cffc",
+                        "surface": "#f7f9fc",
+                        "primary-fixed-dim": "#a4c9ff",
+                        "error-container": "#ffdad6",
+                        "on-error": "#ffffff",
+                        "secondary": "#006a63",
+                        "accent-orange": "#f4801a",
+                        "outline": "#717783",
+                        "inverse-on-surface": "#eff1f4",
+                        "secondary-fixed": "#7df6ea",
+                        "accent-yellow": "#f7c948",
+                        "surface-bright": "#f7f9fc",
+                        "on-background": "#191c1e",
+                        "bg-card-glass": "rgba(255, 255, 255, 0.72)",
+                        "surface-container": "#eceef1",
+                        "inverse-surface": "#2d3133",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed-dim": "#5ed9ce",
+                        "primary": "#005da8",
+                        "on-tertiary-container": "#fcfcff",
+                        "surface-tint": "#005fac",
+                        "background": "#f7f9fc",
+                        "text-on-gradient": "#ffffff",
+                        "on-primary-fixed-variant": "#004884",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "outline-variant": "#c1c7d3",
+                        "secondary-container": "#7df6ea",
+                        "on-secondary-fixed": "#00201d",
+                        "text-secondary": "#5a6478",
+                        "on-primary-container": "#fdfcff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-lg": "32px",
+                        "safe-area-bottom": "env(safe-area-inset-bottom)",
+                        "stack-sm": "8px",
+                        "stack-md": "16px",
+                        "gutter-grid": "16px",
+                        "margin-page": "24px"
+                    },
+                    "fontFamily": {
+                        "hero-temp-mobile": ["Inter"],
+                        "body-main": ["Inter"],
+                        "body-large": ["Inter"],
+                        "label-metadata": ["Inter"],
+                        "label-tiny": ["Inter"],
+                        "hero-temp": ["Inter"],
+                        "headline-display": ["Inter"]
+                    },
+                    "fontSize": {
+                        "hero-temp-mobile": ["64px", {"lineHeight": "1.1", "fontWeight": "200"}],
+                        "body-main": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "body-large": ["18px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "label-metadata": ["14px", {"lineHeight": "1.4", "letterSpacing": "0.01em", "fontWeight": "500"}],
+                        "label-tiny": ["12px", {"lineHeight": "1.2", "fontWeight": "600"}],
+                        "hero-temp": ["80px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "200"}],
+                        "headline-display": ["32px", {"lineHeight": "1.2", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #f7f9fc; /* Use background color from theme */
+        }
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d8dadd;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #c1c7d3;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-background min-h-screen font-body-main antialiased selection:bg-primary-fixed selection:text-on-primary-fixed">
+<div class="max-w-[480px] mx-auto w-full min-h-screen flex flex-col relative bg-bg-surface shadow-[0_4px_20px_0_rgba(0,0,0,0.07)] md:my-8 md:min-h-[850px] md:rounded-[32px] md:overflow-hidden">
+<!-- Top App Bar -->
+<!-- Suppressing global nav as per intent: Task-Focused (Add City) -->
+<header class="sticky top-0 z-50 flex items-center justify-between px-margin-page h-16 bg-bg-surface backdrop-blur-[12px] bg-opacity-90">
+<h1 class="font-headline-display text-body-large text-on-surface absolute left-1/2 -translate-x-1/2">
+                Dodaj miasto
+            </h1>
+<!-- Invisible placeholder to balance flex-between -->
+<div class="w-[45px]"></div>
+</header>
+<main class="flex-1 px-margin-page py-stack-md flex flex-col gap-stack-lg pb-32">
+<!-- Search Input Container -->
+<!-- Search Results -->
+<div class="flex flex-col">
+<h2 class="font-label-metadata text-label-metadata text-on-surface-variant/70 mb-stack-sm uppercase tracking-wider">Wyniki wyszukiwania</h2>
+<ul class="flex flex-col">
+<!-- Result Item 1 -->
+<li class="group flex items-center justify-between py-4 border-b border-surface-container-high/50 last:border-0 hover:bg-surface-container-low/30 transition-colors -mx-4 px-4 rounded-lg cursor-pointer">
+<div class="flex flex-col">
+<span class="font-body-large text-body-large text-on-surface font-medium">Wrocław</span>
+<span class="font-label-tiny text-label-tiny text-on-surface-variant">dolnośląskie, Polska</span>
+</div>
+<button aria-label="Add Wrocław" class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">
+                                add
+                            </span>
+</button>
+</li>
+<!-- Result Item 2 -->
+<li class="group flex items-center justify-between py-4 border-b border-surface-container-high/50 last:border-0 hover:bg-surface-container-low/30 transition-colors -mx-4 px-4 rounded-lg cursor-pointer">
+<div class="flex flex-col">
+<span class="font-body-large text-body-large text-on-surface font-medium">Warszawa</span>
+<span class="font-label-tiny text-label-tiny text-on-surface-variant">mazowieckie, Polska</span>
+</div>
+<button aria-label="Add Warszawa" class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">
+                                add
+                            </span>
+</button>
+</li>
+<!-- Result Item 3 -->
+<li class="group flex items-center justify-between py-4 border-b border-surface-container-high/50 last:border-0 hover:bg-surface-container-low/30 transition-colors -mx-4 px-4 rounded-lg cursor-pointer">
+<div class="flex flex-col">
+<span class="font-body-large text-body-large text-on-surface font-medium">Berlin</span>
+<span class="font-label-tiny text-label-tiny text-on-surface-variant">Niemcy</span>
+</div>
+<button aria-label="Add Berlin" class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">
+                                add
+                            </span>
+</button>
+</li>
+</ul>
+</div>
+<!-- Optional: Empty State Hint (Hidden initially, pure HTML/CSS representation of a feature) -->
+<!-- <div class="flex-1 flex flex-col items-center justify-center text-center px-8 opacity-50 mt-12">
+                <span class="material-symbols-outlined text-[48px] text-on-surface-variant mb-4" style="font-variation-settings: 'FILL' 0;">
+                    travel_explore
+                </span>
+                <p class="font-body-main text-body-main text-on-surface-variant">
+                    Szukaj miast, kodów pocztowych lub lotnisk, aby sprawdzić pogodę.
+                </p>
+            </div> -->
+</main>
+<div class="fixed bottom-0 left-0 right-0 z-50 p-4 pb-safe-area-bottom md:absolute md:rounded-b-[32px]">
+<div class="bg-bg-card-glass backdrop-blur-xl border-t border-white/20 p-4 flex items-center gap-3 shadow-[0_-8px_32px_rgba(0,0,0,0.05)]">
+<div class="relative flex-1 group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/60" style="font-variation-settings: 'FILL' 0;">
+                search
+            </span>
+<input autofocus="" class="w-full bg-surface-container-low/50 text-on-surface font-body-main text-body-main rounded-xl pl-12 pr-4 py-3 border-none focus:ring-2 focus:ring-primary/20 shadow-sm placeholder:text-on-surface-variant/50 outline-none" placeholder="Wpisz nazwę miasta..." type="text"/>
+</div>
+<button class="text-primary hover:opacity-80 transition-opacity font-label-metadata text-label-metadata px-2">
+            Anuluj
+        </button>
+</div>
+</div></div>
+<script>
+        // Simple script to handle input focus state simulation if needed, 
+        // though Tailwind handles most of it nicely.
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.querySelector('input[type="text"]');
+            if(searchInput) {
+                // Ensure focus on load for this specific task flow
+                setTimeout(() => searchInput.focus(), 100);
+            }
+        });
+    </script>
+</body></html>
