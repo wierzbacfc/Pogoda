@@ -103,6 +103,9 @@ const UI = {
         if (v === viewName) {
           el.classList.remove('hidden');
           el.classList.add('fade-in');
+          window.scrollTo(0, 0);
+          const scroller = el.querySelector('.app-content');
+          if (scroller) scroller.scrollTop = 0;
         } else {
           el.classList.add('hidden');
           el.classList.remove('fade-in');
@@ -674,10 +677,17 @@ const UI = {
 
       listContainer.appendChild(wrapper);
     });
+
+    if (cities.filter(city => !city.isGps).length === 0) {
+      const note = document.createElement('div');
+      note.className = 'city-list-empty-note';
+      note.textContent = 'Dodane miasta pojawią się tutaj.';
+      listContainer.appendChild(note);
+    }
   },
 
   // 3. Ekran 3 — Wyszukiwanie View
-  renderSearchResults(results, savedCities, onAddCity) {
+  renderSearchResults(results, savedCities, onAddCity, options = {}) {
     const resultsContainer = document.getElementById('search-results-list');
     const stateContainer = document.getElementById('search-state-container');
     if (!resultsContainer) return;
@@ -691,11 +701,18 @@ const UI = {
     if (!results || results.length === 0) {
       if (stateContainer) {
         stateContainer.classList.remove('hidden');
-        stateContainer.innerHTML = `
-          <span class="material-symbols-outlined state-icon">search_off</span>
-          <span class="state-title">Brak wyników</span>
-          <span class="state-desc">Nie znaleziono miast pasujących do zapytania.</span>
-        `;
+        const isPrompt = options.emptyMode === 'prompt';
+        stateContainer.innerHTML = isPrompt
+          ? `
+            <span class="material-symbols-outlined state-icon">travel_explore</span>
+            <span class="state-title">Wpisz nazwę miasta</span>
+            <span class="state-desc">Wyniki pojawią się po wpisaniu co najmniej dwóch znaków.</span>
+          `
+          : `
+            <span class="material-symbols-outlined state-icon">search_off</span>
+            <span class="state-title">Brak wyników</span>
+            <span class="state-desc">Nie znaleziono miast pasujących do zapytania.</span>
+          `;
       }
       return;
     }

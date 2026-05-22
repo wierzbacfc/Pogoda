@@ -54,10 +54,10 @@
         </div>
 
         <!-- ACTUAL WEATHER LAYOUT CONTENT -->
-        <div id="weather-content-wrapper" class="hidden" style="display: flex; flex-direction: column; gap: 24px;">
+        <div id="weather-content-wrapper" class="hidden" style="display: flex; flex-direction: column; gap: 18px;">
           
           <!-- Hero weather details -->
-          <section class="hero-section">
+          <section class="glass-panel hero-section">
             <div class="hero-location-wrapper">
               <span class="material-symbols-outlined" id="hero-location-icon" style="display: none;">location_on</span>
               <h1 id="weather-header-title" class="hero-city-name">Ładowanie...</h1>
@@ -66,13 +66,13 @@
             <div class="hero-tiles">
 
               <!-- Left tile: Temperature -->
-              <div class="glass-panel hero-tile hero-tile-temp">
+              <div class="hero-tile hero-tile-temp">
                 <span id="hero-temp" class="hero-temp">--°</span>
                 <div class="hero-feels-like" id="hero-feels-like">Odczuwalna --°</div>
               </div>
 
               <!-- Right tile: Weather info -->
-              <div class="glass-panel hero-tile hero-tile-info">
+              <div class="hero-tile hero-tile-info">
                 <div class="hero-desc-wrapper">
                   <span id="hero-icon" class="hero-icon" aria-hidden="true">☀️</span>
                   <div class="hero-desc" id="hero-desc">--</div>
@@ -99,10 +99,10 @@
           </section>
 
           <!-- 14-Day Forecast panel -->
-          <section class="glass-panel">
+          <section class="glass-panel forecast-panel">
             <div class="forecast-header">
               <span class="material-symbols-outlined">calendar_month</span>
-              <h2>Prognoza 14-dniowa</h2>
+              <h2>Najbliższe dni</h2>
             </div>
             <div id="forecast-list-container" class="forecast-list">
               <!-- Dynamically populated daily list -->

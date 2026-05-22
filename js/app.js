@@ -165,7 +165,6 @@ const App = {
         }
       } else {
         GPS_CITY.subtitle = 'Brak uprawnień GPS';
-        UI.showToast('GPS niedostępny. Zezwól na lokalizację.', 'error');
       }
 
       if (this.state.currentView === 'city-list') {
@@ -353,7 +352,7 @@ const App = {
         setTimeout(() => searchInput.focus(), 150);
       }
       if (resultsContainer) resultsContainer.innerHTML = '';
-      UI.renderSearchResults([], [], () => {});
+      UI.renderSearchResults([], [], () => {}, { emptyMode: 'prompt' });
     }
   },
 
@@ -419,7 +418,7 @@ const App = {
         if (searchTimeout) clearTimeout(searchTimeout);
 
         if (query.trim().length < 2) {
-          UI.renderSearchResults([], [], () => {});
+          UI.renderSearchResults([], [], () => {}, { emptyMode: 'prompt' });
           return;
         }
 
