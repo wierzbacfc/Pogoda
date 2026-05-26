@@ -489,9 +489,8 @@ const UI = {
       const hasRainAmount = rainMm > 0.05;
 
       const prob = dailyData.precipitation_probability_max[i] || 0;
-      const rainChance = prob >= 20 ? `<span class="forecast-precip-pill forecast-precip-chance">${prob}%</span>` : '';
-      const rainAmount = hasRainAmount ? `<span class="forecast-precip-pill forecast-precip-amount">${rainMmText} mm</span>` : '';
-      const rainBadges = [rainChance, rainAmount].filter(Boolean).join(' ');
+      const rainChance = prob >= 20 ? `<span class="forecast-precip-chance">${prob}%</span>` : '';
+      const rainAmount = hasRainAmount ? `<span class="forecast-precip-amount">${rainMmText} mm</span>` : '';
 
       // Calculate width and position for temperature bar
       const leftPercent = ((dayMin - globalMin) / globalRange) * 100;
@@ -510,13 +509,12 @@ const UI = {
       const row = document.createElement('div');
       row.className = 'forecast-row';
       row.innerHTML = `
-        <div class="forecast-day-meta">
-          <span class="forecast-day">${dayName}</span>
-          <span class="forecast-precip">${rainBadges}</span>
-        </div>
+        <span class="forecast-day">${dayName}</span>
         <div class="forecast-icon-wrapper">
           <span class="forecast-icon">${info.icon}</span>
+          ${rainChance}
         </div>
+        <span class="forecast-precip-amount-wrap">${rainAmount}</span>
         <div class="forecast-bar-container">
           <span class="forecast-temp min">${minT}</span>
           <div class="forecast-bar">
@@ -943,6 +941,54 @@ const UI = {
     if (spinner) {
       spinner.style.display = visible ? 'block' : 'none';
     }
+  },
+
+  showCityDeleteConfirm(cityName, onConfirm) {
+    const existing = document.querySelector('.delete-confirm-overlay');
+    if (existing) existing.remove();
+
+    const safeName = String(cityName || 'miasto').replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    }[char]));
+
+    const overlay = document.createElement('div');
+    overlay.className = 'delete-confirm-overlay';
+    overlay.innerHTML = `
+      <div class="delete-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title">
+        <div class="delete-confirm-icon">
+          <span class="material-symbols-outlined">location_off</span>
+        </div>
+        <div class="delete-confirm-copy">
+          <span id="delete-confirm-title" class="delete-confirm-title">Usunąć miasto?</span>
+          <span class="delete-confirm-desc">"${safeName}" zniknie z listy zapisanych miejsc.</span>
+        </div>
+        <div class="delete-confirm-actions">
+          <button class="delete-confirm-btn secondary" type="button" data-action="cancel">Anuluj</button>
+          <button class="delete-confirm-btn danger" type="button" data-action="confirm">Usuń</button>
+        </div>
+      </div>
+    `;
+
+    const close = () => {
+      overlay.classList.remove('visible');
+      window.setTimeout(() => overlay.remove(), 180);
+    };
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) close();
+    });
+    overlay.querySelector('[data-action="cancel"]').addEventListener('click', close);
+    overlay.querySelector('[data-action="confirm"]').addEventListener('click', () => {
+      close();
+      onConfirm();
+    });
+
+    (document.querySelector('.app-container') || document.body).appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('visible'));
   },
 
   // Global Toast Messages

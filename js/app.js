@@ -310,6 +310,18 @@ const App = {
 
   handleDeleteCity(index) {
     const deletedCity = this.state.cities[index];
+    if (!deletedCity || deletedCity.isGps) return;
+
+    UI.showCityDeleteConfirm(deletedCity.name, () => {
+      this.confirmDeleteCity(deletedCity.id);
+    });
+  },
+
+  confirmDeleteCity(cityId) {
+    const index = this.state.cities.findIndex(city => city.id === cityId);
+    if (index <= 0) return;
+
+    const deletedCity = this.state.cities[index];
     this.state.cities.splice(index, 1);
     
     // Cleanup cache key

@@ -1,16 +1,16 @@
-const CACHE_NAME = 'weather-pwa-v43';
+const CACHE_NAME = 'weather-pwa-v47';
 
 const STATIC_ASSETS = [
   './',
   'index.html',
-  'css/styles.css?v=41',
-  'js/app.js?v=41',
-  'js/api.js?v=41',
-  'js/geo.js?v=41',
-  'js/storage.js?v=41',
-  'js/ui.js?v=41',
-  'js/weather-codes.js?v=41',
-  'js/pwa.js?v=41',
+  'css/styles.css?v=45',
+  'js/app.js?v=45',
+  'js/api.js?v=45',
+  'js/geo.js?v=45',
+  'js/storage.js?v=45',
+  'js/ui.js?v=45',
+  'js/weather-codes.js?v=45',
+  'js/pwa.js?v=45',
   'manifest.json',
   'offline.html',
   'icons/apple-touch-icon.png',

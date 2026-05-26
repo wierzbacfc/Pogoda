@@ -7,12 +7,12 @@
   --bg-card-solid:    #ffffff;
 
   /* Typography */
-  --font-main:        'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-main:        'Manrope', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   
   /* Text colors */
-  --text-primary:     #1a1f2e;
-  --text-secondary:   #5a6478;
-  --text-tertiary:    #9aa3b2;
+  --text-primary:     #24313d;
+  --text-secondary:   #667482;
+  --text-tertiary:    #9ba7b3;
   --text-on-gradient: #ffffff;
   --text-on-gradient-soft: rgba(255, 255, 255, 0.82);
 
@@ -60,6 +60,13 @@ body {
   justify-content: center;
   align-items: flex-start;
   -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: var(--font-main);
 }
 
 /* Background gradient container that transitions smoothly */
@@ -144,14 +151,15 @@ body {
 }
 
 .app-header h1 {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: 19px;
+  font-weight: 720;
+  color: #22313f;
   text-align: center;
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: 0;
 }
 
 .header-btn {
@@ -316,11 +324,11 @@ body {
 }
 
 .hero-city-name {
-  font-family: 'Outfit', var(--font-main);
-  font-size: 22px;
-  font-weight: 700;
+  font-family: var(--font-main);
+  font-size: 21px;
+  font-weight: 720;
   letter-spacing: 0;
-  color: #1e293b;
+  color: #253746;
 }
 
 .hero-location-wrapper {
@@ -346,9 +354,9 @@ body {
 
 .hero-temp {
   font-size: 78px;
-  font-weight: 200;
+  font-weight: 300;
   line-height: 1;
-  letter-spacing: -3px;
+  letter-spacing: 0;
   color: var(--text-primary);
 }
 
@@ -522,64 +530,54 @@ body {
 
 .forecast-row {
   display: grid;
-  grid-template-columns: minmax(112px, 1.05fr) 28px minmax(142px, 1.45fr);
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  min-height: 34px;
-}
-
-.forecast-day-meta {
-  display: flex;
+  grid-template-columns: 42px 34px 46px minmax(142px, 1fr);
   align-items: center;
   gap: 7px;
-  min-width: 0;
+  font-size: 14px;
+  min-height: 38px;
 }
 
 .forecast-day {
-  flex: 0 0 42px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
 .forecast-icon-wrapper {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 28px;
+  gap: 1px;
+  width: 34px;
+  min-height: 34px;
 }
 
 .forecast-icon {
   text-align: center;
   font-size: 18px;
+  line-height: 1;
 }
 
-.forecast-precip {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
+.forecast-precip-chance {
+  color: var(--accent-rain);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  min-height: 9px;
   white-space: nowrap;
 }
 
-.forecast-precip:empty {
-  display: none;
-}
-
-.forecast-precip-pill {
-  color: var(--accent-rain);
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
-  padding: 3px 5px;
-  border: 1px solid rgba(95, 168, 211, 0.22);
-  border-radius: 6px;
-  background: rgba(95, 168, 211, 0.1);
+.forecast-precip-amount-wrap {
+  min-width: 0;
+  text-align: left;
 }
 
 .forecast-precip-amount {
+  display: inline-block;
   color: #3a7f9f;
-  background: rgba(95, 168, 211, 0.16);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .forecast-bar-container {
@@ -609,13 +607,12 @@ body {
 
 .forecast-bar {
   flex: 1;
-  height: 9px;
-  background:
-    linear-gradient(90deg, rgba(45, 125, 210, 0.1), rgba(23, 168, 158, 0.1) 45%, rgba(244, 128, 26, 0.14) 76%, rgba(224, 92, 42, 0.16));
+  height: 8px;
+  background: #dce4ea;
   border-radius: 999px;
   position: relative;
   overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(26, 31, 46, 0.08);
+  box-shadow: inset 0 1px 1px #c7d1d8;
 }
 
 .forecast-bar-fill {
@@ -626,23 +623,19 @@ body {
   height: auto;
   min-width: 7px;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.35), var(--bar-color, var(--accent-rain)));
-  box-shadow: 0 1px 4px rgba(26, 31, 46, 0.16);
+  background: var(--bar-color, var(--accent-rain));
+  box-shadow: 0 1px 2px #b9c4cc;
   transition: width 0.3s ease;
 }
 
 @media (max-width: 380px) {
   .forecast-row {
-    grid-template-columns: minmax(98px, 1fr) 24px minmax(126px, 1.35fr);
+    grid-template-columns: 38px 32px 42px minmax(112px, 1fr);
     gap: 6px;
   }
 
-  .forecast-day {
-    flex-basis: 38px;
-  }
-
-  .forecast-precip-pill {
-    padding: 3px 4px;
+  .forecast-precip-amount,
+  .forecast-precip-chance {
     font-size: 9px;
   }
 
@@ -1783,6 +1776,198 @@ body {
   color: #2d6873;
 }
 
+.city-pager-item {
+  font-weight: 680;
+  color: rgba(36, 49, 61, 0.74);
+}
+
+.city-pager-item.active {
+  color: #22313f;
+}
+
+.city-list-shell {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(246, 250, 251, 0.44));
+}
+
+.city-list-overview {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(237, 248, 246, 0.5));
+}
+
+.city-list-overview-label {
+  color: rgba(55, 71, 83, 0.6);
+  font-weight: 700;
+}
+
+.city-list-overview-name {
+  color: #22313f;
+  font-weight: 690;
+}
+
+.city-list-overview-count span:not(.material-symbols-outlined) {
+  font-weight: 700;
+}
+
+.city-card {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.city-card,
+.city-card * {
+  font-family: var(--font-main);
+}
+
+.city-card .material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+}
+
+.city-card-wrapper.active .city-card {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(236, 249, 246, 0.56));
+}
+
+.city-card-marker {
+  color: #2c6670;
+  font-weight: 700;
+}
+
+.city-card-title {
+  color: #22313f;
+  font-weight: 680;
+}
+
+.city-card-temp {
+  color: #22313f;
+  font-weight: 340;
+}
+
+.city-card-hold-hint {
+  color: rgba(91, 105, 118, 0.56);
+  font-weight: 600;
+}
+
+.search-input {
+  font-weight: 560;
+}
+
+.search-result-name {
+  color: #22313f;
+  font-weight: 680;
+}
+
+.forecast-header h2,
+.section-title,
+.detail-label {
+  font-weight: 680;
+  color: rgba(36, 49, 61, 0.82);
+}
+
+.delete-confirm-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 18px 16px max(18px, env(safe-area-inset-bottom, 18px));
+  background: rgba(26, 38, 49, 0.24);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.delete-confirm-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.delete-confirm-dialog {
+  width: min(100%, 420px);
+  padding: 16px;
+  border-radius: 20px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(245, 249, 250, 0.78));
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transform: translateY(18px) scale(0.98);
+  transition: transform 180ms ease;
+}
+
+.delete-confirm-overlay.visible .delete-confirm-dialog {
+  transform: translateY(0) scale(1);
+}
+
+.delete-confirm-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: rgba(224, 92, 42, 0.11);
+  color: var(--accent-red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.delete-confirm-icon .material-symbols-outlined {
+  font-size: 22px;
+}
+
+.delete-confirm-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.delete-confirm-title {
+  color: #22313f;
+  font-size: 19px;
+  font-weight: 720;
+}
+
+.delete-confirm-desc {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.delete-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.delete-confirm-btn {
+  height: 44px;
+  border: none;
+  border-radius: 13px;
+  font-family: var(--font-main);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.delete-confirm-btn.secondary {
+  color: #314352;
+  background: rgba(255, 255, 255, 0.64);
+  border: 1px solid rgba(255, 255, 255, 0.56);
+}
+
+.delete-confirm-btn.danger {
+  color: white;
+  background: linear-gradient(135deg, #d85f3e, #c84834);
+  box-shadow: 0 8px 18px rgba(200, 72, 52, 0.2);
+}
+
+.delete-confirm-btn:active {
+  transform: scale(0.98);
+}
+
 @media (min-width: 600px) {
   .city-search-panel {
     left: 14px;
@@ -2032,22 +2217,21 @@ body {
 }
 
 .text-light .forecast-bar {
-  background: rgba(255, 255, 255, 0.14);
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.08);
+  background: #64748b;
+  box-shadow: inset 0 1px 1px #475569;
 }
 
 .text-light .forecast-bar-fill {
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 1px 2px #334155;
 }
 
 .text-light .forecast-row {
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
-.text-light .forecast-precip-pill {
+.text-light .forecast-precip-chance,
+.text-light .forecast-precip-amount {
   color: rgba(255, 255, 255, 0.86);
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.12);
 }
 
 /* ==========================================================================
