@@ -12,10 +12,11 @@ const API = {
    * Returns: Promise<Array<City>>
    */
   async searchCity(query) {
-    if (!query || query.trim().length < 2) {
+    const normalizedQuery = (query || '').trim().replace(/\s+/g, ' ');
+    if (normalizedQuery.length < 2) {
       return [];
     }
-    const url = `${this.GEO_BASE}/search?name=${encodeURIComponent(query)}&count=8&language=pl&format=json`;
+    const url = `${this.GEO_BASE}/search?name=${encodeURIComponent(normalizedQuery)}&count=8&language=pl&format=json`;
     try {
       const response = await fetch(url);
       if (!response.ok) {
@@ -54,6 +55,8 @@ const API = {
             return {
               hourly: cached.data.hourly,
               daily: cached.data.daily,
+              timezone: cached.data.timezone,
+              utc_offset_seconds: cached.data.utc_offset_seconds,
               meta: {
                 fetchedAt: cached.fetchedAt,
                 fromCache: true,
@@ -69,6 +72,8 @@ const API = {
           return {
             hourly: cached.data.hourly,
             daily: cached.data.daily,
+            timezone: cached.data.timezone,
+            utc_offset_seconds: cached.data.utc_offset_seconds,
             meta: {
               fetchedAt: cached.fetchedAt,
               fromCache: true,
@@ -110,6 +115,8 @@ const API = {
       return {
         hourly: data.hourly,
         daily: data.daily,
+        timezone: data.timezone,
+        utc_offset_seconds: data.utc_offset_seconds,
         meta: {
           fetchedAt: cacheData.fetchedAt,
           fromCache: false,
@@ -125,6 +132,8 @@ const API = {
         return {
           hourly: cached.data.hourly,
           daily: cached.data.daily,
+          timezone: cached.data.timezone,
+          utc_offset_seconds: cached.data.utc_offset_seconds,
           meta: {
             fetchedAt: cached.fetchedAt,
             fromCache: true,

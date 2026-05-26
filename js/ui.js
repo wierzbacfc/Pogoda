@@ -8,14 +8,47 @@ function degreesToCardinal(deg) {
   return dirs[Math.round(deg / 45) % 8];
 }
 
-function getCurrentHourIndex(hourlyTimes) {
+function getCurrentHourKey(timezone) {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const hour = String(now.getHours()).padStart(2, '0');
-  const currentHour = `${year}-${month}-${day}T${hour}`; // e.g. "2026-05-22T08"
-  return hourlyTimes.findIndex(t => t.startsWith(currentHour));
+
+  if (!timezone) {
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hour = String(now.getHours()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hour}`;
+  }
+
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      hourCycle: 'h23'
+    }).formatToParts(now);
+
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}T${values.hour}`;
+  } catch (error) {
+    console.warn('Nie udało się użyć strefy czasu z API:', timezone, error);
+    return getCurrentHourKey();
+  }
+}
+
+function getCurrentHourIndex(hourlyTimes, timezone) {
+  const currentHour = getCurrentHourKey(timezone);
+  const exactIdx = hourlyTimes.findIndex(t => t.startsWith(currentHour));
+  if (exactIdx !== -1) return exactIdx;
+
+  const currentDate = currentHour.slice(0, 10);
+  let fallbackIdx = -1;
+  for (let i = 0; i < hourlyTimes.length; i++) {
+    if (!hourlyTimes[i].startsWith(currentDate)) continue;
+    if (hourlyTimes[i] <= currentHour) fallbackIdx = i;
+  }
+  return fallbackIdx;
 }
 
 function formatTime(isoString) {
@@ -96,7 +129,7 @@ function getDaySummary(hourlyData, currentIdx) {
 const UI = {
   // Screen views triggers
   showScreen(viewName) {
-    const views = ['weather', 'city-list', 'search'];
+    const views = ['weather', 'city-list'];
     const dots = document.getElementById('dots-container');
     if (dots) dots.classList.toggle('hidden', viewName !== 'weather');
     const openCitiesBtn = document.getElementById('btn-open-cities');
@@ -290,7 +323,7 @@ const UI = {
   // 1. Ekran 1 — Weather Details View
   renderWeatherScreen(city, weatherData, prefs) {
     // Determine current index of the hour
-    const currentIdx = getCurrentHourIndex(weatherData.hourly.time);
+    const currentIdx = getCurrentHourIndex(weatherData.hourly.time, weatherData.timezone);
     if (currentIdx === -1) {
       this.showToast('Błąd indeksu czasu', 'error');
       return;
@@ -398,6 +431,7 @@ const UI = {
       itemsToRender.push({
         type: 'hour',
         time: formatTime(timeStr),
+        isoTime: timeStr,
         code: hourlyData.weathercode[i],
         isDay: hourlyData.is_day[i],
         temp: formatTemp(hourlyData.temperature_2m[i], prefs.unit),
@@ -414,6 +448,8 @@ const UI = {
       } else {
         const card = document.createElement('div');
         card.className = `hourly-card ${item.isActive ? 'active' : ''}`;
+        card.dataset.time = item.isoTime;
+        card.title = `${item.isActive ? 'Teraz' : item.time}: ${item.temp}`;
         
         const info = getWeatherInfo(item.code, item.isDay);
         
@@ -448,12 +484,14 @@ const UI = {
       const dayMax = dailyData.temperature_2m_max[i];
       const minT = formatTemp(dayMin, prefs.unit);
       const maxT = formatTemp(dayMax, prefs.unit);
-      
+      const rainMm = Number(dailyData.precipitation_sum?.[i] || 0);
+      const rainMmText = rainMm >= 10 ? Math.round(rainMm) : rainMm.toFixed(1).replace('.0', '');
+      const hasRainAmount = rainMm > 0.05;
+
       const prob = dailyData.precipitation_probability_max[i] || 0;
-      let rainInfo = '';
-      if (prob >= 20) {
-        rainInfo = `<span style="font-size: 10px; color: var(--accent-rain); font-weight: bold; margin-left: 4px;">${prob}%</span>`;
-      }
+      const rainChance = prob >= 20 ? `<span class="forecast-precip-pill forecast-precip-chance">${prob}%</span>` : '';
+      const rainAmount = hasRainAmount ? `<span class="forecast-precip-pill forecast-precip-amount">${rainMmText} mm</span>` : '';
+      const rainBadges = [rainChance, rainAmount].filter(Boolean).join(' ');
 
       // Calculate width and position for temperature bar
       const leftPercent = ((dayMin - globalMin) / globalRange) * 100;
@@ -465,15 +503,19 @@ const UI = {
       else if (dayMax < 15) barColor = 'var(--accent-teal)';
       else if (dayMax > 28) barColor = 'var(--accent-red)';
 
-      const barStyle = `left: ${leftPercent}%; width: ${widthPercent}%; background-color: ${barColor};`;
+      const displayWidthPercent = Math.max(widthPercent, 5);
+      const displayLeftPercent = Math.max(0, Math.min(leftPercent, 100 - displayWidthPercent));
+      const barStyle = `left: ${displayLeftPercent}%; width: ${displayWidthPercent}%; --bar-color: ${barColor};`;
 
       const row = document.createElement('div');
       row.className = 'forecast-row';
       row.innerHTML = `
-        <span class="forecast-day">${dayName}</span>
-        <div class="forecast-icon-wrapper" style="width: 48px; display: flex; align-items: center; justify-content: center;">
+        <div class="forecast-day-meta">
+          <span class="forecast-day">${dayName}</span>
+          <span class="forecast-precip">${rainBadges}</span>
+        </div>
+        <div class="forecast-icon-wrapper">
           <span class="forecast-icon">${info.icon}</span>
-          ${rainInfo}
         </div>
         <div class="forecast-bar-container">
           <span class="forecast-temp min">${minT}</span>
@@ -547,35 +589,56 @@ const UI = {
   renderDots(cities, activeIndex, onSelect) {
     const container = document.getElementById('dots-container');
     if (!container) return;
-    container.innerHTML = '';
+    if (!cities || cities.length === 0) {
+      container.innerHTML = '';
+      container.dataset.citySignature = '';
+      return;
+    }
 
-    if (!cities || cities.length === 0) return;
+    const signature = cities.map(city => city.id).join('|');
+    let track = container.querySelector('.city-pager-track');
+    const shouldRebuild = !track || container.dataset.citySignature !== signature;
 
-    const track = document.createElement('div');
-    track.className = 'city-pager-track';
+    if (shouldRebuild) {
+      container.innerHTML = '';
+      track = document.createElement('div');
+      track.className = 'city-pager-track';
 
     cities.forEach((city, index) => {
       const item = document.createElement('button');
       item.type = 'button';
-      item.className = `city-pager-item ${index === activeIndex ? 'active' : ''}`;
+      item.className = 'city-pager-item';
+      item.dataset.index = String(index);
       item.setAttribute('aria-label', `Pokaż miasto ${city.name}`);
       item.textContent = city.isGps && city.subtitle && city.subtitle !== 'Brak uprawnień GPS'
         ? city.subtitle
         : city.name;
       item.addEventListener('click', () => {
-        if (index !== activeIndex && typeof onSelect === 'function') {
-          onSelect(index);
+        const itemIndex = Number(item.dataset.index);
+        if (typeof onSelect === 'function') {
+          onSelect(itemIndex);
         }
       });
       track.appendChild(item);
     });
 
-    container.appendChild(track);
+      container.appendChild(track);
+      container.dataset.citySignature = signature;
+    }
+
+    track.querySelectorAll('.city-pager-item').forEach((item, index) => {
+      const city = cities[index];
+      item.dataset.index = String(index);
+      item.classList.toggle('active', index === activeIndex);
+      item.setAttribute('aria-current', index === activeIndex ? 'true' : 'false');
+      item.textContent = city.isGps && city.subtitle ? city.subtitle : city.name;
+    });
 
     const activeItem = track.querySelector('.city-pager-item.active');
     if (activeItem) {
       requestAnimationFrame(() => {
-        activeItem.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        const targetLeft = activeItem.offsetLeft - (track.clientWidth - activeItem.offsetWidth) / 2;
+        track.scrollTo({ left: Math.max(0, targetLeft), behavior: shouldRebuild ? 'auto' : 'smooth' });
       });
     }
   },
@@ -585,6 +648,32 @@ const UI = {
     const listContainer = document.getElementById('city-list-container');
     if (!listContainer) return;
     listContainer.innerHTML = '';
+
+    const activeCity = cities[activeIndex] || cities[0];
+    const savedCount = cities.filter(city => !city.isGps).length;
+    const totalCount = cities.length;
+    const listShell = document.createElement('div');
+    listShell.className = 'city-list-shell';
+
+    if (activeCity) {
+      const overview = document.createElement('div');
+      overview.className = 'city-list-overview';
+      overview.innerHTML = `
+        <div class="city-list-overview-main">
+          <span class="city-list-overview-label">Aktywne miasto</span>
+          <span class="city-list-overview-name">${activeCity.name}</span>
+        </div>
+        <div class="city-list-overview-count">
+          <span class="material-symbols-outlined">location_city</span>
+          <span>${totalCount}</span>
+          <small>${totalCount === 1 ? 'miasto' : 'miasta'}</small>
+        </div>
+      `;
+      listShell.appendChild(overview);
+    }
+
+    const itemsContainer = document.createElement('div');
+    itemsContainer.className = 'city-list-items';
 
     cities.forEach((city, index) => {
       const wrapper = document.createElement('div');
@@ -611,16 +700,20 @@ const UI = {
           </div>
         `;
       } else if (weather && !weather.error) {
-        const curIdx = getCurrentHourIndex(weather.hourly.time);
-        const tempVal = formatTemp(weather.hourly.temperature_2m[curIdx], prefs.unit);
-        const code = weather.hourly.weathercode[curIdx];
-        const isDay = weather.hourly.is_day[curIdx];
-        const info = getWeatherInfo(code, isDay);
+        const curIdx = getCurrentHourIndex(weather.hourly.time, weather.timezone);
+        if (curIdx === -1) {
+          cardWeatherHtml = `<span class="city-card-subtitle" style="color: var(--accent-red)">Brak godziny</span>`;
+        } else {
+          const tempVal = formatTemp(weather.hourly.temperature_2m[curIdx], prefs.unit);
+          const code = weather.hourly.weathercode[curIdx];
+          const isDay = weather.hourly.is_day[curIdx];
+          const info = getWeatherInfo(code, isDay);
 
-        cardWeatherHtml = `
-          <span class="city-card-temp">${tempVal}</span>
-          <span class="city-card-icon" aria-hidden="true">${info.icon}</span>
-        `;
+          cardWeatherHtml = `
+            <span class="city-card-temp">${tempVal}</span>
+            <span class="city-card-icon" aria-hidden="true">${info.icon}</span>
+          `;
+        }
       } else if (weather && weather.error) {
         cardWeatherHtml = `<span class="city-card-subtitle" style="color: var(--accent-red)">Błąd danych</span>`;
       } else {
@@ -632,14 +725,22 @@ const UI = {
         `;
       }
 
-      const gpsMarker = city.isGps ? '<span class="city-card-gps-icon">📍</span>' : '';
+      const cityInitial = (city.name || '?').trim().charAt(0).toUpperCase();
+      const cityMarker = city.isGps
+        ? '<span class="material-symbols-outlined city-card-marker city-card-marker-gps">my_location</span>'
+        : `<span class="city-card-marker">${cityInitial}</span>`;
+      const holdHint = city.isGps ? '' : '<span class="city-card-hold-hint">Przytrzymaj, aby usunąć</span>';
 
       card.innerHTML = `
         <div class="city-card-info">
-          ${gpsMarker}
+          ${cityMarker}
           <div class="city-card-names">
-            <span class="city-card-title">${city.name}${index === activeIndex ? ' <span class="city-card-active-label">Teraz</span>' : ''}</span>
+            <span class="city-card-title">
+              <span class="city-card-title-text">${city.name}</span>
+              ${index === activeIndex ? '<span class="city-card-active-label">Teraz</span>' : ''}
+            </span>
             <span class="city-card-subtitle">${subtitle}</span>
+            ${holdHint}
           </div>
         </div>
         <div class="city-card-weather">
@@ -647,11 +748,47 @@ const UI = {
         </div>
       `;
 
+      let longPressTimer = null;
+      let longPressTriggered = false;
+      let pressStartX = 0;
+      let pressStartY = 0;
+      const clearLongPress = () => {
+        window.clearTimeout(longPressTimer);
+        longPressTimer = null;
+        wrapper.classList.remove('holding');
+      };
+
+      if (!city.isGps) {
+        card.addEventListener('pointerdown', (e) => {
+          if (e.button !== 0 && e.pointerType === 'mouse') return;
+          longPressTriggered = false;
+          pressStartX = e.clientX;
+          pressStartY = e.clientY;
+          wrapper.classList.add('holding');
+          longPressTimer = window.setTimeout(() => {
+            longPressTriggered = true;
+            clearLongPress();
+            onDelete(index);
+          }, 720);
+        });
+
+        card.addEventListener('pointermove', (e) => {
+          if (!longPressTimer) return;
+          if (Math.abs(e.clientX - pressStartX) > 10 || Math.abs(e.clientY - pressStartY) > 10) {
+            clearLongPress();
+          }
+        });
+
+        card.addEventListener('pointerup', clearLongPress);
+        card.addEventListener('pointercancel', clearLongPress);
+        card.addEventListener('pointerleave', clearLongPress);
+      }
+
       // Tap card action -> change active city & go to Ekran 1
       card.addEventListener('click', (e) => {
-        // Prevent click if we are currently swiped to show delete
-        if (wrapper.classList.contains('swiped')) {
-          wrapper.classList.remove('swiped');
+        if (longPressTriggered) {
+          longPressTriggered = false;
+          e.preventDefault();
           return;
         }
         onSelect(index);
@@ -659,8 +796,8 @@ const UI = {
 
       wrapper.appendChild(card);
 
-      // Attach Swipe-to-Delete handlers (excluding GPS location card)
-      if (!city.isGps) {
+      // Legacy swipe-delete block disabled; deletion is handled by long press above.
+      if (false && !city.isGps) {
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'city-card-delete';
         deleteBtn.innerHTML = `
@@ -705,21 +842,25 @@ const UI = {
         }, { passive: true });
       }
 
-      listContainer.appendChild(wrapper);
+      itemsContainer.appendChild(wrapper);
     });
 
-    if (cities.filter(city => !city.isGps).length === 0) {
+    if (savedCount === 0) {
       const note = document.createElement('div');
       note.className = 'city-list-empty-note';
       note.textContent = 'Dodane miasta pojawią się tutaj.';
-      listContainer.appendChild(note);
+      itemsContainer.appendChild(note);
     }
+
+    listShell.appendChild(itemsContainer);
+    listContainer.appendChild(listShell);
   },
 
   // 3. Ekran 3 — Wyszukiwanie View
   renderSearchResults(results, savedCities, onAddCity, options = {}) {
     const resultsContainer = document.getElementById('search-results-list');
     const stateContainer = document.getElementById('search-state-container');
+    const resultsSection = resultsContainer ? resultsContainer.closest('.search-results-section') : null;
     if (!resultsContainer) return;
 
     resultsContainer.innerHTML = '';
@@ -729,8 +870,11 @@ const UI = {
     }
 
     if (!results || results.length === 0) {
+      if (resultsSection) {
+        resultsSection.classList.add('hidden');
+      }
       if (stateContainer) {
-        stateContainer.classList.remove('hidden');
+        stateContainer.classList.add('hidden');
         const isPrompt = options.emptyMode === 'prompt';
         stateContainer.innerHTML = isPrompt
           ? `
@@ -745,6 +889,10 @@ const UI = {
           `;
       }
       return;
+    }
+
+    if (resultsSection) {
+      resultsSection.classList.remove('hidden');
     }
 
     results.forEach(res => {

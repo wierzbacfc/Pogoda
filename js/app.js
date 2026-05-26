@@ -7,7 +7,7 @@ const App = {
     cities: [],             // Saved cities (always starts with GPS_CITY at index 0)
     activeCityIndex: 0,     // Index of currently displayed city
     weatherMap: new Map(),  // city.id -> weatherData
-    currentView: 'weather', // 'weather' | 'city-list' | 'search'
+    currentView: 'weather',
     prefs: {
       unit: 'C'             // 'C' | 'F'
     }
@@ -56,11 +56,8 @@ const App = {
 
   loadStateFromStorage() {
     // Load prefs
-    const savedPrefs = Storage.get('wpwa_prefs');
     this.state.prefs.unit = 'C'; // Force Celsius
-    if (savedPrefs) {
-      this.state.activeCityIndex = savedPrefs.activeCityIndex || 0;
-    }
+    this.state.activeCityIndex = 0; // Always start with GPS/current location after opening
 
     // Load cities list (excluding GPS_CITY, which is initialized fresh)
     const savedCities = Storage.get('wpwa_cities', []);
@@ -138,6 +135,7 @@ const App = {
       if (this.state.activeCityIndex === 0) {
         this.renderActiveWeather();
       }
+      this.updateDotsIndicator();
 
       // Rerender city list to show updated temperature & name
       if (this.state.currentView === 'city-list') {
@@ -163,6 +161,7 @@ const App = {
         if (this.state.activeCityIndex === 0) {
           this.renderActiveWeather();
         }
+        this.updateDotsIndicator();
       } else {
         GPS_CITY.subtitle = 'Brak uprawnień GPS';
       }
@@ -353,6 +352,11 @@ const App = {
 
     App.navigateTo('city-list');
     App.renderCitiesList();
+    const searchInput = document.getElementById('city-search-input');
+    const resultsContainer = document.getElementById('search-results-list');
+    if (searchInput) searchInput.value = '';
+    if (resultsContainer) resultsContainer.innerHTML = '';
+    UI.renderSearchResults([], [], () => {}, { emptyMode: 'prompt' });
     
     App.fetchWeatherForCity(newCity).then(() => {
       App.renderCitiesList();
@@ -376,15 +380,6 @@ const App = {
 
     if (view === 'city-list') {
       this.renderCitiesList();
-    } else if (view === 'search') {
-      const searchInput = document.getElementById('city-search-input');
-      const resultsContainer = document.getElementById('search-results-list');
-      if (searchInput) {
-        searchInput.value = '';
-        setTimeout(() => searchInput.focus(), 150);
-      }
-      if (resultsContainer) resultsContainer.innerHTML = '';
-      UI.renderSearchResults([], [], () => {}, { emptyMode: 'prompt' });
     }
   },
 
@@ -396,13 +391,6 @@ const App = {
       });
     }
 
-    const addCityFromListBtn = document.getElementById('btn-add-city-from-list');
-    if (addCityFromListBtn) {
-      addCityFromListBtn.addEventListener('click', () => {
-        this.navigateTo('search');
-      });
-    }
-
     // Header Back buttons
     const backToWeatherBtn = document.getElementById('btn-back-to-weather');
     if (backToWeatherBtn) {
@@ -411,25 +399,26 @@ const App = {
       });
     }
 
-    const cancelSearchBtn = document.getElementById('btn-cancel-search');
-    if (cancelSearchBtn) {
-      cancelSearchBtn.addEventListener('click', () => {
-        this.navigateTo('city-list');
-      });
-    }
-
     // Temp Unit Switcher in Header removed to keep Celsius permanent.
 
     // Live search geocoding handler with 400ms debounce
     const searchInput = document.getElementById('city-search-input');
+    const focusCitySearchBtn = document.getElementById('btn-focus-city-search');
     let searchTimeout = null;
+
+    if (focusCitySearchBtn) {
+      focusCitySearchBtn.addEventListener('click', () => {
+        if (!searchInput) return;
+        searchInput.focus();
+      });
+    }
     
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
-        const query = e.target.value;
+        const query = e.target.value.trim().replace(/\s+/g, ' ');
         if (searchTimeout) clearTimeout(searchTimeout);
 
-        if (query.trim().length < 2) {
+        if (query.length < 2) {
           UI.renderSearchResults([], [], () => {}, { emptyMode: 'prompt' });
           return;
         }
@@ -515,8 +504,14 @@ const App = {
         const goneTime = Date.now() - lastActiveTime;
         if (goneTime > 300000) {
           console.log(`App resumed after ${Math.round(goneTime / 1000)}s. Refreshing...`);
+          this.state.activeCityIndex = 0;
+          this.saveStateToStorage();
           this.refreshAll();
           this.initGPS();
+          if (this.state.currentView === 'weather') {
+            this.renderActiveWeather();
+            this.updateDotsIndicator();
+          }
         }
       } else {
         lastActiveTime = Date.now();
