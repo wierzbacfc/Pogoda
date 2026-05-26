@@ -370,7 +370,7 @@ const UI = {
     const isDay = hourlyData.is_day[currentIdx];
     const info = getWeatherInfo(code, isDay);
 
-    if (heroIcon) heroIcon.textContent = info.icon;
+    if (heroIcon) heroIcon.innerHTML = info.icon;
     if (heroTemp) heroTemp.textContent = formatTemp(hourlyData.temperature_2m[currentIdx], prefs.unit);
     if (heroDesc) heroDesc.textContent = info.label;
     if (heroFeelsLike) {

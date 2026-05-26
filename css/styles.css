@@ -380,6 +380,77 @@ select {
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.08));
 }
 
+.hero-icon .weather-flat-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.weather-flat-icon {
+  width: 1em;
+  height: 1em;
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 1px 1px rgba(42, 57, 72, 0.16));
+}
+
+.weather-flat-icon .sun-rays path,
+.weather-flat-icon .rain-drop,
+.weather-flat-icon .snow-line,
+.weather-flat-icon .fog-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+.weather-flat-icon .sun-core {
+  fill: #f6c84c;
+}
+
+.weather-flat-icon .sun-rays path {
+  stroke: #f2b53d;
+}
+
+.weather-flat-icon .cloud-main {
+  fill: #9fb0bd;
+  stroke: rgba(71, 85, 105, 0.18);
+  stroke-width: 1.2;
+}
+
+.weather-flat-icon .cloud-soft {
+  fill: #dce7ed;
+  stroke: rgba(100, 116, 139, 0.12);
+  stroke-width: 1;
+}
+
+.weather-flat-icon .storm-cloud {
+  fill: #7f8ea0;
+}
+
+.weather-flat-icon .moon-core {
+  fill: #7787ad;
+}
+
+.weather-flat-icon .star-dot {
+  fill: #f3d38b;
+}
+
+.weather-flat-icon .rain-drop {
+  stroke: #4ea7cf;
+}
+
+.weather-flat-icon .snow-line {
+  stroke: #7fc7df;
+}
+
+.weather-flat-icon .fog-line {
+  stroke: #a9b7c1;
+}
+
+.weather-flat-icon .bolt {
+  fill: #f2b73f;
+}
+
 .hero-desc {
   font-size: 17px;
   font-weight: 600;
@@ -476,6 +547,11 @@ select {
   margin-bottom: 4px;
 }
 
+.hourly-icon .weather-flat-icon {
+  width: 22px;
+  height: 22px;
+}
+
 .hourly-temp {
   font-size: 13px;
   font-weight: 650;
@@ -517,7 +593,7 @@ select {
 .forecast-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
   max-height: 292px;
   overflow-y: auto;
   padding-right: 2px;
@@ -530,14 +606,25 @@ select {
 
 .forecast-row {
   display: grid;
-  grid-template-columns: 42px 34px 46px minmax(142px, 1fr);
+  grid-template-columns: 44px 36px 50px minmax(134px, 1fr);
   align-items: center;
-  gap: 7px;
-  font-size: 14px;
-  min-height: 38px;
+  gap: 6px;
+  min-height: 36px;
+  padding: 5px 7px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.forecast-row:nth-child(even) {
+  background: rgba(237, 248, 246, 0.36);
+}
+
+.forecast-row:nth-child(3n) {
+  background: rgba(255, 248, 226, 0.34);
 }
 
 .forecast-day {
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -548,22 +635,27 @@ select {
   align-items: center;
   justify-content: center;
   gap: 1px;
-  width: 34px;
+  width: 36px;
   min-height: 34px;
 }
 
 .forecast-icon {
   text-align: center;
-  font-size: 18px;
+  font-size: 20px;
   line-height: 1;
+}
+
+.forecast-icon .weather-flat-icon {
+  width: 23px;
+  height: 23px;
 }
 
 .forecast-precip-chance {
   color: var(--accent-rain);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   line-height: 1;
-  min-height: 9px;
+  min-height: 10px;
   white-space: nowrap;
 }
 
@@ -575,7 +667,7 @@ select {
 .forecast-precip-amount {
   display: inline-block;
   color: #3a7f9f;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -590,9 +682,9 @@ select {
 }
 
 .forecast-temp {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  width: 26px;
+  width: 28px;
 }
 
 .forecast-temp.min {
@@ -630,17 +722,19 @@ select {
 
 @media (max-width: 380px) {
   .forecast-row {
-    grid-template-columns: 38px 32px 42px minmax(112px, 1fr);
-    gap: 6px;
+    grid-template-columns: 39px 34px 46px minmax(100px, 1fr);
+    gap: 5px;
+    padding: 5px 6px;
   }
 
   .forecast-precip-amount,
   .forecast-precip-chance {
-    font-size: 9px;
+    font-size: 10px;
   }
 
   .forecast-temp {
-    width: 23px;
+    width: 25px;
+    font-size: 11px;
   }
 }
 
@@ -1665,6 +1759,11 @@ select {
   font-size: 24px;
 }
 
+.city-card-icon .weather-flat-icon {
+  width: 28px;
+  height: 28px;
+}
+
 .city-list-empty-note {
   padding: 13px 14px;
   border-radius: 13px;
@@ -2226,7 +2325,16 @@ select {
 }
 
 .text-light .forecast-row {
+  background: rgba(255, 255, 255, 0.08);
   border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.text-light .forecast-row:nth-child(even) {
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.text-light .forecast-row:nth-child(3n) {
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .text-light .forecast-precip-chance,
