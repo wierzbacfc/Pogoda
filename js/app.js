@@ -27,6 +27,10 @@ const App = {
     // 2. Initial view setup
     UI.showScreen(this.state.currentView);
     UI.showSkeleton(true);
+    const hasStartupCache = this.hydrateWeatherFromCache();
+    if (hasStartupCache) {
+      this.renderActiveWeather();
+    }
     this.updateDotsIndicator();
 
     // 3. Register Event Listeners
@@ -40,18 +44,27 @@ const App = {
     // 5. Initialize Geolocation (non-blocking)
     this.initGPS();
 
-    // 6. Fetch weather for all cities
-    // Force GPS fetch without waiting since we mocked it with Poznan
-    if (GPS_CITY.latitude) {
-      await this.fetchWeatherForCity(GPS_CITY);
-    }
-    await this.refreshAll();
+    // 6. Show cached content immediately, then refresh weather in the background.
+    this.refreshAll().finally(() => {
+      UI.showSkeleton(false);
+    });
 
-    // 7. Hide skeleton loading screen
-    UI.showSkeleton(false);
-
-    // 8. Auto-refresh checks on wake-up
+    // 7. Auto-refresh checks on wake-up
     this.bindLifecycleEvents();
+  },
+
+  hydrateWeatherFromCache() {
+    let hydrated = false;
+
+    this.state.cities.forEach(city => {
+      const cachedWeather = API.getCachedWeather(city);
+      if (cachedWeather && !cachedWeather.error) {
+        this.state.weatherMap.set(city.id, cachedWeather);
+        hydrated = true;
+      }
+    });
+
+    return hydrated;
   },
 
   loadStateFromStorage() {

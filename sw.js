@@ -1,16 +1,16 @@
-const CACHE_NAME = 'weather-pwa-v50';
+const CACHE_NAME = 'weather-pwa-v51';
 
 const STATIC_ASSETS = [
   './',
   'index.html',
-  'css/styles.css?v=48',
-  'js/app.js?v=48',
-  'js/api.js?v=48',
-  'js/geo.js?v=48',
-  'js/storage.js?v=48',
-  'js/ui.js?v=48',
-  'js/weather-codes.js?v=48',
-  'js/pwa.js?v=48',
+  'css/styles.css',
+  'js/app.js',
+  'js/api.js',
+  'js/geo.js',
+  'js/storage.js',
+  'js/ui.js',
+  'js/weather-codes.js',
+  'js/pwa.js',
   'manifest.json',
   'offline.html',
   'icons/apple-touch-icon.png',
@@ -56,7 +56,7 @@ self.addEventListener('fetch', event => {
   }
 
   event.respondWith(
-    caches.match(event.request).then(cached => {
+    caches.match(event.request, { ignoreSearch: true }).then(cached => {
       return cached || fetch(event.request).catch(() => {
         // Serve offline.html fallback for navigation requests when connection is lost
         if (event.request.mode === 'navigate') {

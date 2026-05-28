@@ -7,6 +7,31 @@ const API = {
   WEATHER_BASE: 'https://api.open-meteo.com/v1',
   CACHE_TTL:    600000, // 10 minutes in milliseconds
 
+  getCachedWeather(city) {
+    if (!city || city.latitude === null || city.longitude === null) {
+      return null;
+    }
+
+    const cached = Storage.get(`wpwa_weather_${city.id}`);
+    if (!cached || !cached.data) {
+      return null;
+    }
+
+    return {
+      hourly: cached.data.hourly,
+      daily: cached.data.daily,
+      timezone: cached.data.timezone,
+      utc_offset_seconds: cached.data.utc_offset_seconds,
+      meta: {
+        fetchedAt: cached.fetchedAt,
+        fromCache: true,
+        isStartupCache: true,
+        lat: cached.lat,
+        lon: cached.lon
+      }
+    };
+  },
+
   /**
    * Search for cities by query.
    * Returns: Promise<Array<City>>
