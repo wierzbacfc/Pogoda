@@ -205,20 +205,20 @@ const UI = {
 
     if (effectType === 'rain' || effectType === 'storm') {
       // Create falling rain lines
-      const dropCount = effectType === 'storm' ? 45 : 25;
+      const dropCount = effectType === 'storm' ? 72 : 42;
       for (let i = 0; i < dropCount; i++) {
         const drop = document.createElement('div');
         drop.className = 'rain-drop';
         drop.style.left = `${Math.random() * 110 - 5}%`;
         drop.style.top = `${Math.random() * -100}px`;
-        drop.style.animationDelay = `${Math.random() * 2}s`;
-        drop.style.animationDuration = `${0.5 + Math.random() * 0.5}s`;
+        drop.style.animationDelay = `${Math.random() * 1.4}s`;
+        drop.style.animationDuration = `${0.36 + Math.random() * 0.34}s`;
         effectsEl.appendChild(drop);
       }
       if (effectType === 'storm') {
         effectsEl.classList.add('stormy-active');
         // Create lightning bolts
-        const boltCount = 2;
+        const boltCount = 3;
         for (let i = 0; i < boltCount; i++) {
           const bolt = document.createElement('div');
           bolt.className = 'lightning-bolt';
@@ -230,7 +230,7 @@ const UI = {
       }
     } else if (effectType === 'snow') {
       // Create drifting snowflakes
-      const flakeCount = 20;
+      const flakeCount = 34;
       for (let i = 0; i < flakeCount; i++) {
         const flake = document.createElement('div');
         flake.className = 'snowflake';
@@ -240,62 +240,62 @@ const UI = {
         flake.style.left = `${Math.random() * 100}%`;
         flake.style.top = `${Math.random() * -20}px`;
         flake.style.animationDelay = `${Math.random() * 5}s`;
-        flake.style.animationDuration = `${3 + Math.random() * 3}s`;
+        flake.style.animationDuration = `${2.4 + Math.random() * 2.8}s`;
         effectsEl.appendChild(flake);
       }
     } else if (effectType === 'sunny') {
       // Create sun glow
       const glow = document.createElement('div');
       glow.className = 'sun-glow';
-      glow.style.width = '240px';
-      glow.style.height = '240px';
-      glow.style.top = '-60px';
-      glow.style.right = '-60px';
+      glow.style.width = '300px';
+      glow.style.height = '300px';
+      glow.style.top = '-78px';
+      glow.style.right = '-82px';
       effectsEl.appendChild(glow);
 
       // Create sun rays
-      const rayAngles = [-15, 0, 15, 30, 45, 60];
+      const rayAngles = [-24, -8, 8, 24, 40, 56, 72, 88];
       rayAngles.forEach((angle, idx) => {
         const ray = document.createElement('div');
         ray.className = 'sun-ray';
         ray.style.setProperty('--ray-angle', `${angle}deg`);
-        ray.style.right = `${10 + idx * 25}px`;
-        ray.style.animationDelay = `${idx * 0.4}s`;
-        ray.style.height = `${140 + Math.random() * 60}px`;
+        ray.style.right = `${-4 + idx * 22}px`;
+        ray.style.animationDelay = `${idx * 0.28}s`;
+        ray.style.height = `${170 + Math.random() * 80}px`;
         effectsEl.appendChild(ray);
       });
 
       // Create floating bokeh particles
-      const particleCount = 8;
+      const particleCount = 14;
       for (let i = 0; i < particleCount; i++) {
         const particle = document.createElement('div');
         particle.className = 'sun-particle';
-        const size = 30 + Math.random() * 40;
+        const size = 34 + Math.random() * 52;
         particle.style.width = `${size}px`;
         particle.style.height = `${size}px`;
         particle.style.left = `${Math.random() * 100}%`;
         particle.style.animationDelay = `${Math.random() * 6}s`;
-        particle.style.animationDuration = `${7 + Math.random() * 5}s`;
+        particle.style.animationDuration = `${5.5 + Math.random() * 4.5}s`;
         effectsEl.appendChild(particle);
       }
     } else if (effectType === 'starry') {
       // Create stars
-      const starCount = 25;
+      const starCount = 40;
       for (let i = 0; i < starCount; i++) {
         const star = document.createElement('div');
         star.className = 'star';
-        const size = 1.5 + Math.random() * 2;
+        const size = 1.5 + Math.random() * 2.8;
         star.style.width = `${size}px`;
         star.style.height = `${size}px`;
         star.style.left = `${Math.random() * 100}%`;
         star.style.top = `${Math.random() * 70}%`;
         star.style.animationDelay = `${Math.random() * 3}s`;
-        star.style.animationDuration = `${1.5 + Math.random() * 2}s`;
+        star.style.animationDuration = `${1.1 + Math.random() * 1.8}s`;
         effectsEl.appendChild(star);
       }
 
       // Create shooting stars
-      const shootingStarCount = 2;
+      const shootingStarCount = 3;
       for (let i = 0; i < shootingStarCount; i++) {
         const ss = document.createElement('div');
         ss.className = 'shooting-star';
@@ -308,28 +308,28 @@ const UI = {
       }
     } else if (effectType === 'cloudy') {
       // Create drifting cloud masses
-      const cloudCount = 4;
+      const cloudCount = 7;
       for (let i = 0; i < cloudCount; i++) {
         const cloud = document.createElement('div');
         cloud.className = 'drift-cloud';
-        const width = 140 + Math.random() * 100;
-        const height = 70 + Math.random() * 50;
+        const width = 160 + Math.random() * 130;
+        const height = 80 + Math.random() * 60;
         cloud.style.width = `${width}px`;
         cloud.style.height = `${height}px`;
         cloud.style.top = `${10 + Math.random() * 50}%`;
         cloud.style.animationDelay = `${Math.random() * -40}s`;
-        cloud.style.animationDuration = `${35 + Math.random() * 25}s`;
+        cloud.style.animationDuration = `${24 + Math.random() * 22}s`;
         effectsEl.appendChild(cloud);
       }
     } else if (effectType === 'fog') {
       // Create fog layers
-      const fogCount = 3;
+      const fogCount = 5;
       for (let i = 0; i < fogCount; i++) {
         const fog = document.createElement('div');
         fog.className = 'fog-layer';
-        fog.style.top = `${40 + i * 20}%`;
-        fog.style.animationDelay = `${i * -5}s`;
-        fog.style.animationDuration = `${12 + Math.random() * 8}s`;
+        fog.style.top = `${28 + i * 14}%`;
+        fog.style.animationDelay = `${i * -4}s`;
+        fog.style.animationDuration = `${8 + Math.random() * 6}s`;
         effectsEl.appendChild(fog);
       }
     }
@@ -520,15 +520,16 @@ const UI = {
       const dayMax = dailyData.temperature_2m_max[i];
       const minT = formatTemp(dayMin, prefs.unit);
       const maxT = formatTemp(dayMax, prefs.unit);
-      const rainMm = Number(dailyData.precipitation_sum?.[i] || 0);
-      const rainMmText = rainMm >= 10 ? Math.round(rainMm) : rainMm.toFixed(1).replace('.0', '');
-      const hasRainAmount = rainMm > 0.05;
+      const rainMm = Math.max(0, Number(dailyData.precipitation_sum?.[i] || 0));
+      const hasRainAmount = rainMm > 0;
+      const rainMmText = rainMm > 0 && rainMm < 0.1 ? '<0.1' : (rainMm >= 10 ? Math.round(rainMm) : rainMm.toFixed(1).replace('.0', ''));
 
       const prob = dailyData.precipitation_probability_max[i] || 0;
       const rainAmount = hasRainAmount ? `${rainMmText} mm` : 'brak';
+      const rainDisplay = hasRainAmount ? `${rainMmText} mm` : '';
       const rainChance = prob >= 20 ? `${prob}%` : '';
       const wind = getWindDisplay(dailyData.windspeed_10m_max?.[i], dailyData.winddirection_10m_dominant?.[i]);
-      const windInfo = wind ? `${wind.arrow} ${wind.speed}` : '--';
+      const windInfo = wind ? `${wind.arrow}${wind.speed}` : '--';
       const windAria = wind ? `Wiatr maksymalny ${wind.speed} km/h` : 'Brak danych o wietrze';
 
       // Calculate width and position for temperature bar
@@ -552,15 +553,13 @@ const UI = {
         <div class="forecast-icon-wrapper">
           <span class="forecast-icon">${info.icon}</span>
         </div>
-        <button class="forecast-metric-tile forecast-metric-combo ${hasRainAmount || prob >= 20 ? '' : 'muted'}" type="button" data-chart-metric="overview" aria-label="Opady ${hasRainAmount ? rainAmount : 'brak'}${rainChance ? `, prawdopodobieństwo ${rainChance}` : ''}. ${windAria}">
-          <span class="forecast-metric-block">
-            <span class="forecast-metric-label">Opady</span>
-            <span class="forecast-metric-value">${rainAmount}</span>
-            ${rainChance ? `<span class="forecast-metric-extra">${rainChance}</span>` : ''}
+        <button class="forecast-metric-tile forecast-metric-combo ${hasRainAmount ? '' : 'muted'}" type="button" data-chart-metric="overview" aria-label="Opady ${hasRainAmount ? rainAmount : 'brak'}${rainChance ? `, prawdopodobieństwo ${rainChance}` : ''}. ${windAria}">
+          <span class="forecast-metric-block ${hasRainAmount ? '' : 'empty'}">
+            <span class="forecast-metric-value">${rainDisplay}</span>
+            ${hasRainAmount && rainChance ? `<span class="forecast-metric-extra">${rainChance}</span>` : ''}
           </span>
           <span class="forecast-metric-divider" aria-hidden="true"></span>
           <span class="forecast-metric-block">
-            <span class="forecast-metric-label">Wiatr</span>
             <span class="forecast-metric-value">${windInfo} <span class="wind-unit">km/h</span></span>
           </span>
         </button>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'weather-pwa-v58';
+const CACHE_NAME = 'weather-pwa-v60';
 
 const STATIC_ASSETS = [
   './',
