@@ -8,6 +8,21 @@ function degreesToCardinal(deg) {
   return dirs[Math.round(deg / 45) % 8];
 }
 
+function degreesToArrow(deg) {
+  const arrows = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
+  return arrows[Math.round(deg / 45) % 8];
+}
+
+function getWindDisplay(speed, direction) {
+  const windSpeed = Math.round(Number(speed));
+  if (!Number.isFinite(windSpeed) || windSpeed <= 0) {
+    return null;
+  }
+
+  const windArrow = Number.isFinite(direction) ? degreesToArrow(direction) : '';
+  return { speed: windSpeed, arrow: windArrow };
+}
+
 function getCurrentHourKey(timezone) {
   const now = new Date();
 
@@ -351,7 +366,7 @@ const UI = {
     this.renderHourlyBar(weatherData.hourly, currentIdx, prefs);
 
     // Render 14-day daily forecast list
-    this.renderDailyForecast(weatherData.daily, prefs);
+    this.renderDailyForecast(weatherData.daily, prefs, weatherData.hourly, currentIdx);
 
     // Render Details Grid
     this.renderDetailsGrid(weatherData.hourly, weatherData.daily, currentIdx);
@@ -435,6 +450,8 @@ const UI = {
         code: hourlyData.weathercode[i],
         isDay: hourlyData.is_day[i],
         temp: formatTemp(hourlyData.temperature_2m[i], prefs.unit),
+        windSpeed: hourlyData.windspeed_10m?.[i],
+        windDir: hourlyData.winddirection_10m?.[i],
         isActive: i === currentIdx
       });
     }
@@ -449,7 +466,11 @@ const UI = {
         const card = document.createElement('div');
         card.className = `hourly-card ${item.isActive ? 'active' : ''}`;
         card.dataset.time = item.isoTime;
-        card.title = `${item.isActive ? 'Teraz' : item.time}: ${item.temp}`;
+        const wind = getWindDisplay(item.windSpeed, item.windDir);
+        const windLabel = wind
+          ? `${wind.arrow} ${wind.speed} <span class="wind-unit">km/h</span>`
+          : '--';
+        card.title = `${item.isActive ? 'Teraz' : item.time}: ${item.temp}${wind ? `, wiatr ${wind.speed} km/h` : ''}`;
         
         const info = getWeatherInfo(item.code, item.isDay);
         
@@ -457,16 +478,31 @@ const UI = {
           <span class="hourly-time">${item.isActive ? 'Teraz' : item.time}</span>
           <span class="hourly-icon">${info.icon}</span>
           <span class="hourly-temp">${item.temp}</span>
+          <span class="hourly-wind" aria-label="${wind ? `Wiatr ${wind.speed} km/h` : 'Brak danych o wietrze'}">${windLabel}</span>
         `;
         container.appendChild(card);
       }
     });
   },
 
-  renderDailyForecast(dailyData, prefs) {
+  ensureForecastChartPanel(container) {
+    let panel = document.getElementById('forecast-chart-panel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'forecast-chart-panel';
+      panel.className = 'forecast-chart-panel hidden';
+    }
+    container.insertAdjacentElement('beforebegin', panel);
+    return panel;
+  },
+
+  renderDailyForecast(dailyData, prefs, hourlyData, currentIdx) {
     const container = document.getElementById('forecast-list-container');
     if (!container) return;
     container.innerHTML = '';
+    const chartPanel = this.ensureForecastChartPanel(container);
+    chartPanel.classList.add('hidden');
+    chartPanel.innerHTML = '';
 
     // Render up to 14 days
     const limit = Math.min(14, dailyData.time.length);
@@ -489,8 +525,11 @@ const UI = {
       const hasRainAmount = rainMm > 0.05;
 
       const prob = dailyData.precipitation_probability_max[i] || 0;
-      const rainChance = prob >= 20 ? `<span class="forecast-precip-chance">${prob}%</span>` : '';
-      const rainAmount = hasRainAmount ? `<span class="forecast-precip-amount">${rainMmText} mm</span>` : '';
+      const rainAmount = hasRainAmount ? `${rainMmText} mm` : 'brak';
+      const rainChance = prob >= 20 ? `${prob}%` : '';
+      const wind = getWindDisplay(dailyData.windspeed_10m_max?.[i], dailyData.winddirection_10m_dominant?.[i]);
+      const windInfo = wind ? `${wind.arrow} ${wind.speed}` : '--';
+      const windAria = wind ? `Wiatr maksymalny ${wind.speed} km/h` : 'Brak danych o wietrze';
 
       // Calculate width and position for temperature bar
       const leftPercent = ((dayMin - globalMin) / globalRange) * 100;
@@ -512,9 +551,19 @@ const UI = {
         <span class="forecast-day">${dayName}</span>
         <div class="forecast-icon-wrapper">
           <span class="forecast-icon">${info.icon}</span>
-          ${rainChance}
         </div>
-        <span class="forecast-precip-amount-wrap">${rainAmount}</span>
+        <button class="forecast-metric-tile forecast-metric-combo ${hasRainAmount || prob >= 20 ? '' : 'muted'}" type="button" data-chart-metric="overview" aria-label="Opady ${hasRainAmount ? rainAmount : 'brak'}${rainChance ? `, prawdopodobieństwo ${rainChance}` : ''}. ${windAria}">
+          <span class="forecast-metric-block">
+            <span class="forecast-metric-label">Opady</span>
+            <span class="forecast-metric-value">${rainAmount}</span>
+            ${rainChance ? `<span class="forecast-metric-extra">${rainChance}</span>` : ''}
+          </span>
+          <span class="forecast-metric-divider" aria-hidden="true"></span>
+          <span class="forecast-metric-block">
+            <span class="forecast-metric-label">Wiatr</span>
+            <span class="forecast-metric-value">${windInfo} <span class="wind-unit">km/h</span></span>
+          </span>
+        </button>
         <div class="forecast-bar-container">
           <span class="forecast-temp min">${minT}</span>
           <div class="forecast-bar">
@@ -523,8 +572,125 @@ const UI = {
           <span class="forecast-temp max">${maxT}</span>
         </div>
       `;
+      const tile = row.querySelector('.forecast-metric-tile');
+      if (tile) {
+        tile.addEventListener('click', () => {
+          container.querySelectorAll('.forecast-metric-tile.active').forEach(activeTile => {
+            activeTile.classList.remove('active');
+          });
+          tile.classList.add('active');
+          this.renderForecastTrendChart(hourlyData, currentIdx, tile.dataset.chartMetric);
+        });
+      }
       container.appendChild(row);
     }
+  },
+
+  renderForecastTrendChart(hourlyData, currentIdx, activeMetric = 'rain') {
+    const panel = document.getElementById('forecast-chart-panel');
+    if (!panel || !hourlyData || currentIdx < 0) return;
+
+    const startIdx = Math.max(0, currentIdx);
+    const endIdx = Math.min(startIdx + 24, hourlyData.time.length);
+    const points = [];
+    for (let i = startIdx; i < endIdx; i++) {
+      points.push({
+        time: hourlyData.time[i],
+        rain: Number(hourlyData.precipitation?.[i] || 0),
+        wind: Number(hourlyData.windspeed_10m?.[i] || 0)
+      });
+    }
+
+    if (!points.length) return;
+
+    const maxRain = Math.max(0.4, ...points.map(point => point.rain));
+    const maxWind = Math.max(1, ...points.map(point => point.wind));
+    const maxRainText = maxRain >= 10 ? `${Math.round(maxRain)} mm` : `${maxRain.toFixed(1).replace('.0', '')} mm`;
+    const maxWindText = `${Math.round(maxWind)} km/h`;
+    const formatRainScale = value => value >= 10 ? `${Math.round(value)}` : value.toFixed(1).replace('.0', '');
+    const formatWindScale = value => `${Math.round(value)}`;
+    const width = 320;
+    const height = 144;
+    const left = 42;
+    const right = 44;
+    const top = 16;
+    const bottom = 26;
+    const chartWidth = width - left - right;
+    const chartHeight = height - top - bottom;
+    const step = points.length > 1 ? chartWidth / (points.length - 1) : chartWidth;
+    const barWidth = Math.max(4, Math.min(10, chartWidth / points.length * 0.56));
+
+    const rainBars = points.map((point, index) => {
+      const barHeight = Math.max(point.rain > 0 ? 2 : 0, (point.rain / maxRain) * chartHeight);
+      const x = left + index * step - barWidth / 2;
+      const y = top + chartHeight - barHeight;
+      return `<rect class="forecast-chart-rain-bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" rx="2"/>`;
+    }).join('');
+
+    const windPath = points.map((point, index) => {
+      const x = left + index * step;
+      const y = top + chartHeight - (point.wind / maxWind) * chartHeight;
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    }).join(' ');
+
+    const windPoints = points
+      .filter((_, index) => index % 4 === 0 || index === points.length - 1)
+      .map((point, index, sampled) => {
+        const originalIndex = index === sampled.length - 1 ? points.length - 1 : index * 4;
+        const x = left + originalIndex * step;
+        const y = top + chartHeight - (point.wind / maxWind) * chartHeight;
+        return `<circle class="forecast-chart-wind-point" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6"/>`;
+      }).join('');
+
+    const labels = points
+      .filter((_, index) => index % 6 === 0 || index === points.length - 1)
+      .map((point, index, sampled) => {
+        const originalIndex = index === sampled.length - 1 ? points.length - 1 : index * 6;
+        const x = left + originalIndex * step;
+        return `<text class="forecast-chart-axis-label" x="${x.toFixed(1)}" y="${height - 6}" text-anchor="middle">${formatTime(point.time)}</text>`;
+      }).join('');
+
+    const scaleTicks = [1, 0.5, 0];
+    const rainScaleLabels = scaleTicks.map((tick, index) => {
+      const y = top + chartHeight - tick * chartHeight;
+      const value = formatRainScale(maxRain * tick);
+      const suffix = index === 0 ? ' mm' : '';
+      return `<text class="forecast-chart-y-label rain" x="${left - 7}" y="${(y + 3).toFixed(1)}" text-anchor="end">${value}${suffix}</text>`;
+    }).join('');
+    const windScaleLabels = scaleTicks.map((tick, index) => {
+      const y = top + chartHeight - tick * chartHeight;
+      const value = formatWindScale(maxWind * tick);
+      const suffix = index === 0 ? ' km/h' : '';
+      return `<text class="forecast-chart-y-label wind" x="${left + chartWidth + 7}" y="${(y + 3).toFixed(1)}" text-anchor="start">${value}${suffix}</text>`;
+    }).join('');
+
+    panel.className = `forecast-chart-panel active-${activeMetric}`;
+    panel.innerHTML = `
+      <div class="forecast-chart-head">
+        <div>
+          <span class="forecast-chart-eyebrow">Najbliższe 24h</span>
+          <h3>Opady i wiatr</h3>
+        </div>
+        <div class="forecast-chart-scale">
+          <span><i class="rain"></i>${maxRainText}</span>
+          <span><i class="wind"></i>${maxWindText}</span>
+        </div>
+      </div>
+      <svg class="forecast-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Wykres opadów i wiatru na najbliższe 24 godziny">
+        <line class="forecast-chart-grid" x1="${left}" y1="${top}" x2="${left + chartWidth}" y2="${top}"/>
+        <line class="forecast-chart-grid" x1="${left}" y1="${top + chartHeight / 2}" x2="${left + chartWidth}" y2="${top + chartHeight / 2}"/>
+        <line class="forecast-chart-grid baseline" x1="${left}" y1="${top + chartHeight}" x2="${left + chartWidth}" y2="${top + chartHeight}"/>
+        ${rainScaleLabels}
+        ${windScaleLabels}
+        ${rainBars}
+        <path class="forecast-chart-wind-line" d="${windPath}"/>
+        ${windPoints}
+        ${labels}
+      </svg>
+    `;
+    requestAnimationFrame(() => {
+      panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
   },
 
   renderDetailsGrid(hourlyData, dailyData, currentIdx) {
