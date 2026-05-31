@@ -725,13 +725,15 @@ select {
 
 .forecast-row {
   display: grid;
-  grid-template-columns: 40px 34px minmax(92px, 0.56fr) minmax(126px, 1fr);
+  grid-template-columns: 40px 34px minmax(78px, 0.42fr) minmax(138px, 1fr);
   align-items: center;
   gap: 5px;
   min-height: 38px;
   padding: 4px 7px;
   border-radius: 10px;
+  border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.32);
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
 .forecast-row:nth-child(even) {
@@ -740,6 +742,30 @@ select {
 
 .forecast-row:nth-child(3n) {
   background: rgba(255, 248, 226, 0.34);
+}
+
+.forecast-row.chart-enabled {
+  cursor: pointer;
+}
+
+.forecast-row.chart-enabled:hover {
+  background: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.forecast-row.chart-enabled:active {
+  transform: translateY(0);
+}
+
+.forecast-row.chart-enabled:focus-visible {
+  outline: 2px solid rgba(86, 111, 134, 0.55);
+  outline-offset: 2px;
+}
+
+.forecast-row.active {
+  background: rgba(255, 255, 255, 0.66);
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 .forecast-day {
@@ -769,63 +795,49 @@ select {
   height: 27px;
 }
 
-.forecast-metric-tile {
-  min-width: 0;
-  min-height: 28px;
-  padding: 3px 5px;
-  border: 1px solid rgba(255, 255, 255, 0.42);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.34);
-  color: var(--text-primary);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-  transition: var(--transition);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
-}
-
-.forecast-metric-block {
+.forecast-conditions {
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
-  gap: 1px;
-  line-height: 1;
-}
-
-.forecast-metric-value {
-  color: var(--text-primary);
-  font-size: 10.4px;
+  column-gap: 5px;
+  row-gap: 2px;
+  color: #5f7284;
+  font-size: 10.3px;
   font-weight: 760;
-  white-space: nowrap;
-}
-
-.forecast-metric-extra {
-  color: #4d8aa9;
-  font-size: 8.2px;
-  font-weight: 720;
   line-height: 1;
+}
+
+.forecast-conditions.no-rain {
+  justify-content: flex-start;
+}
+
+.forecast-condition {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
   white-space: nowrap;
 }
 
-.forecast-metric-divider {
-  width: 1px;
-  height: 19px;
-  background: rgba(102, 116, 130, 0.18);
+.forecast-condition.rain {
+  color: #3d879f;
 }
 
-.forecast-metric-tile.muted {
-  color: var(--text-tertiary);
-  background: rgba(255, 255, 255, 0.22);
+.forecast-condition.wind {
+  color: #657483;
 }
 
-.forecast-metric-tile.active {
-  background: rgba(255, 255, 255, 0.7);
-  border-color: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+.forecast-condition small {
+  color: #4c8baa;
+  font-size: 8.1px;
+  font-weight: 760;
+}
+
+.forecast-condition .wind-unit {
+  font-size: 8.8px;
+  font-weight: 720;
 }
 
 .forecast-bar-container {
@@ -878,18 +890,14 @@ select {
 
 @media (max-width: 380px) {
   .forecast-row {
-    grid-template-columns: 34px 31px minmax(84px, 0.66fr) minmax(92px, 1fr);
-    gap: 5px;
+    grid-template-columns: 34px 31px minmax(70px, 0.4fr) minmax(96px, 1fr);
+    gap: 4px;
     padding: 5px 6px;
   }
 
-  .forecast-metric-tile {
-    gap: 4px;
-    padding: 3px 4px;
-  }
-
-  .forecast-metric-value {
-    font-size: 9.2px;
+  .forecast-conditions {
+    column-gap: 4px;
+    font-size: 9.4px;
   }
 
   .forecast-temp {
@@ -2674,17 +2682,32 @@ select {
   background: rgba(255, 255, 255, 0.07);
 }
 
-.text-light .forecast-metric-tile {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.text-light .forecast-metric-tile.active {
+.text-light .forecast-row.chart-enabled:hover,
+.text-light .forecast-row.active {
   background: rgba(255, 255, 255, 0.18);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-.text-light .forecast-metric-extra,
+.text-light .forecast-day,
+.text-light .forecast-temp.max,
+.text-light .forecast-condition {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.text-light .forecast-temp.min {
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.text-light .forecast-condition.rain,
+.text-light .forecast-condition small {
+  color: rgba(174, 224, 244, 0.92);
+}
+
+.text-light .forecast-condition.wind {
+  color: rgba(226, 233, 240, 0.84);
+}
+
 .text-light .forecast-chart-eyebrow,
 .text-light .forecast-chart-scale,
 .text-light .forecast-chart-axis-label,
@@ -2693,11 +2716,6 @@ select {
   fill: rgba(255, 255, 255, 0.7);
 }
 
-.text-light .forecast-metric-divider {
-  background: rgba(255, 255, 255, 0.14);
-}
-
-.text-light .forecast-metric-value,
 .text-light .forecast-chart-head h3 {
   color: rgba(255, 255, 255, 0.86);
 }
@@ -2735,25 +2753,46 @@ select {
 .rain-drop {
   position: absolute;
   background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(174,214,241,0.92) 100%);
-  width: 1.8px;
-  height: 68px;
+  width: 1.6px;
+  height: 64px;
   border-radius: 2px;
   opacity: 0;
   animation: fall-rain linear infinite;
+  filter: blur(var(--rain-blur, 0));
+}
+
+.rain-drop-fine {
+  width: 1px;
+  height: 48px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(191,225,247,0.84) 100%);
+}
+
+.rain-drop-mid {
+  width: 1.7px;
+  height: 70px;
+}
+
+.rain-drop-heavy {
+  width: 2.4px;
+  height: 88px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(205,234,255,0.95) 100%);
 }
 
 @keyframes fall-rain {
-  0%   { transform: translateY(-80px) rotate(18deg); opacity: 0; }
-  5%   { opacity: 0.88; }
-  95%  { opacity: 0.88; }
-  100% { transform: translateY(110vh) rotate(18deg); opacity: 0; }
+  0%   { transform: translate3d(0, -90px, 0) rotate(var(--rain-angle, 18deg)); opacity: 0; }
+  6%   { opacity: var(--rain-opacity, 0.86); }
+  92%  { opacity: var(--rain-opacity, 0.86); }
+  100% { transform: translate3d(var(--rain-drift, -72px), 110vh, 0) rotate(var(--rain-angle, 18deg)); opacity: 0; }
 }
 
 /* ---- STORM ---- */
 .weather-effects.stormy-active .rain-drop {
-  width: 2.4px;
-  height: 86px;
   background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(200,230,255,0.9) 100%);
+}
+
+.weather-effects.stormy-active .rain-drop-heavy {
+  width: 2.8px;
+  height: 104px;
 }
 
 /* Lightning bolt overlay */
