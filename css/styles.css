@@ -777,10 +777,12 @@ select {
 
 .forecast-icon-wrapper {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  gap: 1px;
+  width: 36px;
+  height: 40px;
   border-radius: 9px;
   background: rgba(255, 255, 255, 0.22);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
@@ -793,19 +795,37 @@ select {
 }
 
 .forecast-icon .weather-flat-icon {
-  width: 27px;
-  height: 27px;
+  width: 26px;
+  height: 26px;
+}
+
+.forecast-icon-rain {
+  min-height: 9px;
+  color: #3d879f;
+  font-size: 8.1px;
+  font-weight: 760;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.forecast-icon-rain small {
+  margin-left: 2px;
+  color: #4c8baa;
+  font-size: 7.4px;
+  font-weight: 760;
+}
+
+.forecast-icon-rain.empty {
+  visibility: hidden;
 }
 
 .forecast-conditions {
   min-width: 0;
-  display: grid;
-  grid-template-rows: 14px 14px;
+  display: flex;
   align-items: center;
-  justify-items: start;
-  gap: 1px;
+  justify-content: flex-start;
   color: #5f7284;
-  font-size: 10.3px;
+  font-size: 11px;
   font-weight: 760;
   line-height: 1;
 }
@@ -817,14 +837,6 @@ select {
   gap: 3px;
   max-width: 100%;
   white-space: nowrap;
-}
-
-.forecast-condition.rain {
-  color: #3d879f;
-}
-
-.forecast-condition.rain.empty {
-  visibility: hidden;
 }
 
 .forecast-condition.wind {
@@ -899,13 +911,12 @@ select {
   }
 
   .forecast-conditions {
-    grid-template-rows: 13px 13px;
-    font-size: 9.2px;
+    font-size: 10px;
   }
 
   .forecast-icon-wrapper {
     width: 31px;
-    height: 31px;
+    height: 37px;
   }
 
   .forecast-temp {
@@ -987,11 +998,11 @@ select {
 }
 
 .forecast-chart-scale i.rain {
-  background: linear-gradient(135deg, #69b8dc, #d94b42);
+  background: linear-gradient(135deg, #0ea5e9, #f59e0b, #dc2626);
 }
 
 .forecast-chart-scale i.wind {
-  background: linear-gradient(135deg, #617d92, #d8433e);
+  background: linear-gradient(135deg, #2563eb, #f59e0b, #dc2626);
 }
 
 .forecast-chart-close {
@@ -1043,6 +1054,12 @@ select {
   stroke: rgba(102, 116, 130, 0.28);
 }
 
+.forecast-chart-day-separator {
+  stroke: rgba(64, 83, 103, 0.42);
+  stroke-width: 1.4;
+  stroke-dasharray: 4 4;
+}
+
 .forecast-chart-rain-bar {
   fill: var(--rain-color, #61acd5);
   opacity: var(--rain-opacity, 0.72);
@@ -1052,22 +1069,23 @@ select {
 .forecast-chart-wind-segment {
   fill: none;
   stroke: var(--wind-color, #576f86);
-  stroke-width: 2.6;
+  stroke-width: 3.8;
   stroke-linecap: round;
   stroke-linejoin: round;
+  filter: drop-shadow(0 1px 1px rgba(15, 23, 42, 0.16));
   transition: stroke 0.25s ease;
 }
 
 .forecast-chart-wind-point {
   fill: #f7fbfd;
   stroke: var(--wind-color, #576f86);
-  stroke-width: 1.5;
+  stroke-width: 2;
   transition: stroke 0.25s ease;
 }
 
 .forecast-chart-axis-label {
   fill: var(--text-secondary);
-  font-size: 8px;
+  font-size: 7.2px;
   font-weight: 700;
 }
 
@@ -2759,8 +2777,8 @@ select {
   color: rgba(255, 255, 255, 0.58);
 }
 
-.text-light .forecast-condition.rain,
-.text-light .forecast-condition small {
+.text-light .forecast-icon-rain,
+.text-light .forecast-icon-rain small {
   color: rgba(174, 224, 244, 0.92);
 }
 
@@ -2810,6 +2828,10 @@ select {
 
 .text-light .forecast-chart-grid.baseline {
   stroke: rgba(255, 255, 255, 0.24);
+}
+
+.text-light .forecast-chart-day-separator {
+  stroke: rgba(255, 255, 255, 0.34);
 }
 
 /* ==========================================================================

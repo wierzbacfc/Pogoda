@@ -584,7 +584,7 @@ const UI = {
       const rainDisplay = hasRainAmount ? `${rainMmText} mm` : '';
       const rainChance = prob >= 20 ? `${prob}%` : '';
       const wind = getWindDisplay(dailyData.windspeed_10m_max?.[i], dailyData.winddirection_10m_dominant?.[i]);
-      const windInfo = wind ? `${wind.arrow}${wind.speed}` : '--';
+      const windInfo = wind ? `${wind.speed}` : '--';
       const windAria = wind ? `Wiatr maksymalny ${wind.speed} km/h` : 'Brak danych o wietrze';
       const chartEnabled = offset < 3;
 
@@ -611,11 +611,11 @@ const UI = {
       }
       row.innerHTML = `
         <span class="forecast-day">${dayName}</span>
-        <div class="forecast-icon-wrapper">
+        <div class="forecast-icon-wrapper ${hasRainAmount ? 'has-rain' : ''}">
           <span class="forecast-icon">${info.icon}</span>
+          <span class="forecast-icon-rain ${hasRainAmount ? '' : 'empty'}" ${hasRainAmount ? '' : 'aria-hidden="true"'}>${hasRainAmount ? `${rainDisplay}${rainChance ? `<small>${rainChance}</small>` : ''}` : ''}</span>
         </div>
-        <div class="forecast-conditions ${hasRainAmount ? 'has-rain' : 'no-rain'}">
-          <span class="forecast-condition rain ${hasRainAmount ? '' : 'empty'}" ${hasRainAmount ? '' : 'aria-hidden="true"'}>${hasRainAmount ? `${rainDisplay}${rainChance ? `<small>${rainChance}</small>` : ''}` : ''}</span>
+        <div class="forecast-conditions">
           <span class="forecast-condition wind">${windInfo} <span class="wind-unit">km/h</span></span>
         </div>
         <div class="forecast-bar-container">
@@ -693,8 +693,8 @@ const UI = {
       if (ratio < 0.5) return mixHex(low, mid, ratio * 2);
       return mixHex(mid, high, (ratio - 0.5) * 2);
     };
-    const getRainColor = value => scaleColor(value, 6, '#69b8dc', '#f0a64b', '#d94b42');
-    const getWindColor = value => scaleColor(value, 45, '#617d92', '#eba03d', '#d8433e');
+    const getRainColor = value => scaleColor(value, 4.5, '#0ea5e9', '#f59e0b', '#dc2626');
+    const getWindColor = value => scaleColor(value, 34, '#2563eb', '#f59e0b', '#dc2626');
 
     const maxRainActual = Math.max(0, ...points.map(point => point.rain));
     const maxWindActual = Math.max(0, ...points.map(point => point.wind));
@@ -741,14 +741,24 @@ const UI = {
     const windPoints = windCoords
       .filter((_, index) => index % 4 === 0 || index === points.length - 1)
       .map(point => {
-        return `<circle class="forecast-chart-wind-point" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="2.7" style="--wind-color: ${getWindColor(point.wind)}"/>`;
+        return `<circle class="forecast-chart-wind-point" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3.1" style="--wind-color: ${getWindColor(point.wind)}"/>`;
+      }).join('');
+
+    const daySeparators = points
+      .slice(1)
+      .map((point, index) => {
+        const currentIndex = index + 1;
+        const previousDate = points[currentIndex - 1].time.slice(0, 10);
+        const currentDate = point.time.slice(0, 10);
+        if (currentDate === previousDate) return '';
+        const x = left + currentIndex * step;
+        return `<line class="forecast-chart-day-separator" x1="${x.toFixed(1)}" y1="${top}" x2="${x.toFixed(1)}" y2="${top + chartHeight}"/>`;
       }).join('');
 
     const labels = points
-      .filter((_, index) => index % 6 === 0 || index === points.length - 1)
-      .map((point, index, sampled) => {
-        const originalIndex = index === sampled.length - 1 ? points.length - 1 : index * 6;
-        const x = left + originalIndex * step;
+      .map((point, index) => {
+        if (index % 3 !== 0 && index !== points.length - 1) return '';
+        const x = left + index * step;
         return `<text class="forecast-chart-axis-label" x="${x.toFixed(1)}" y="${height - 6}" text-anchor="middle">${formatTime(point.time)}</text>`;
       }).join('');
 
@@ -791,6 +801,7 @@ const UI = {
         <line class="forecast-chart-grid" x1="${left}" y1="${top}" x2="${left + chartWidth}" y2="${top}"/>
         <line class="forecast-chart-grid" x1="${left}" y1="${top + chartHeight / 2}" x2="${left + chartWidth}" y2="${top + chartHeight / 2}"/>
         <line class="forecast-chart-grid baseline" x1="${left}" y1="${top + chartHeight}" x2="${left + chartWidth}" y2="${top + chartHeight}"/>
+        ${daySeparators}
         ${rainScaleLabels}
         ${windScaleLabels}
         ${rainBars}
