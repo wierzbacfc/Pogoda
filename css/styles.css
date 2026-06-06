@@ -725,12 +725,12 @@ select {
 
 .forecast-row {
   display: grid;
-  grid-template-columns: 40px 34px minmax(78px, 0.42fr) minmax(138px, 1fr);
+  grid-template-columns: 42px 36px minmax(88px, 94px) minmax(128px, 1fr);
   align-items: center;
-  gap: 5px;
-  min-height: 38px;
-  padding: 4px 7px;
-  border-radius: 10px;
+  gap: 7px;
+  min-height: 43px;
+  padding: 5px 7px;
+  border-radius: 9px;
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.32);
   transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
@@ -769,6 +769,7 @@ select {
 }
 
 .forecast-day {
+  min-width: 0;
   font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
@@ -776,12 +777,13 @@ select {
 
 .forecast-icon-wrapper {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
   width: 34px;
-  min-height: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .forecast-icon {
@@ -797,20 +799,15 @@ select {
 
 .forecast-conditions {
   min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-rows: 14px 14px;
   align-items: center;
-  justify-content: center;
-  column-gap: 5px;
-  row-gap: 2px;
+  justify-items: start;
+  gap: 1px;
   color: #5f7284;
   font-size: 10.3px;
   font-weight: 760;
   line-height: 1;
-}
-
-.forecast-conditions.no-rain {
-  justify-content: flex-start;
 }
 
 .forecast-condition {
@@ -818,6 +815,7 @@ select {
   display: inline-flex;
   align-items: baseline;
   gap: 3px;
+  max-width: 100%;
   white-space: nowrap;
 }
 
@@ -825,11 +823,16 @@ select {
   color: #3d879f;
 }
 
+.forecast-condition.rain.empty {
+  visibility: hidden;
+}
+
 .forecast-condition.wind {
   color: #657483;
 }
 
 .forecast-condition small {
+  margin-left: 3px;
   color: #4c8baa;
   font-size: 8.1px;
   font-weight: 760;
@@ -890,14 +893,19 @@ select {
 
 @media (max-width: 380px) {
   .forecast-row {
-    grid-template-columns: 34px 31px minmax(70px, 0.4fr) minmax(96px, 1fr);
+    grid-template-columns: 34px 31px minmax(76px, 82px) minmax(92px, 1fr);
     gap: 4px;
     padding: 5px 6px;
   }
 
   .forecast-conditions {
-    column-gap: 4px;
-    font-size: 9.4px;
+    grid-template-rows: 13px 13px;
+    font-size: 9.2px;
+  }
+
+  .forecast-icon-wrapper {
+    width: 31px;
+    height: 31px;
   }
 
   .forecast-temp {
@@ -908,11 +916,11 @@ select {
 
 .forecast-chart-panel {
   margin-top: 8px;
-  padding: 10px 10px 8px;
+  padding: 10px 10px 9px;
   border-radius: 13px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.48), rgba(235, 246, 249, 0.36));
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.62), rgba(235, 246, 249, 0.42));
   border: 1px solid rgba(255, 255, 255, 0.44);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.52);
 }
 
 .forecast-chart-panel.hidden {
@@ -924,7 +932,11 @@ select {
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.forecast-chart-title {
+  min-width: 0;
 }
 
 .forecast-chart-eyebrow {
@@ -955,6 +967,12 @@ select {
   white-space: nowrap;
 }
 
+.forecast-chart-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
 .forecast-chart-scale span {
   display: inline-flex;
   align-items: center;
@@ -969,11 +987,35 @@ select {
 }
 
 .forecast-chart-scale i.rain {
-  background: #61acd5;
+  background: linear-gradient(135deg, #69b8dc, #d94b42);
 }
 
 .forecast-chart-scale i.wind {
-  background: #576f86;
+  background: linear-gradient(135deg, #617d92, #d8433e);
+}
+
+.forecast-chart-close {
+  width: 27px;
+  height: 27px;
+  border: 1px solid rgba(102, 116, 130, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.44);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.forecast-chart-close:hover {
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text-primary);
+}
+
+.forecast-chart-close .material-symbols-outlined {
+  font-size: 18px;
+  line-height: 1;
 }
 
 .forecast-chart-svg {
@@ -988,26 +1030,39 @@ select {
   stroke-width: 1;
 }
 
+.forecast-chart-plot-bg {
+  fill: rgba(255, 255, 255, 0.28);
+}
+
+.forecast-chart-axis {
+  stroke: rgba(102, 116, 130, 0.2);
+  stroke-width: 1.1;
+}
+
 .forecast-chart-grid.baseline {
   stroke: rgba(102, 116, 130, 0.28);
 }
 
 .forecast-chart-rain-bar {
-  fill: rgba(93, 169, 211, 0.46);
+  fill: var(--rain-color, #61acd5);
+  opacity: var(--rain-opacity, 0.72);
+  transition: fill 0.25s ease, opacity 0.25s ease;
 }
 
-.forecast-chart-wind-line {
+.forecast-chart-wind-segment {
   fill: none;
-  stroke: #576f86;
+  stroke: var(--wind-color, #576f86);
   stroke-width: 2.6;
   stroke-linecap: round;
   stroke-linejoin: round;
+  transition: stroke 0.25s ease;
 }
 
 .forecast-chart-wind-point {
   fill: #f7fbfd;
-  stroke: #576f86;
+  stroke: var(--wind-color, #576f86);
   stroke-width: 1.5;
+  transition: stroke 0.25s ease;
 }
 
 .forecast-chart-axis-label {
@@ -2689,6 +2744,11 @@ select {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
+.text-light .forecast-icon-wrapper {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
 .text-light .forecast-day,
 .text-light .forecast-temp.max,
 .text-light .forecast-condition {
@@ -2723,6 +2783,25 @@ select {
 .text-light .forecast-chart-panel {
   background: linear-gradient(145deg, rgba(15, 23, 42, 0.36), rgba(15, 23, 42, 0.22));
   border-color: rgba(255, 255, 255, 0.08);
+}
+
+.text-light .forecast-chart-close {
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.text-light .forecast-chart-close:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.text-light .forecast-chart-plot-bg {
+  fill: rgba(255, 255, 255, 0.06);
+}
+
+.text-light .forecast-chart-axis {
+  stroke: rgba(255, 255, 255, 0.22);
 }
 
 .text-light .forecast-chart-grid {
