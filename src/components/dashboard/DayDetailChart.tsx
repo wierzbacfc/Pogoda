@@ -1,10 +1,8 @@
 'use client';
 
-import React, { useMemo, useRef, useEffect, useState } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { HourlyData } from '@/lib/types';
-import { WeatherIcon } from '@/components/ui/WeatherIcon';
-import { Cloud, CloudRain, Droplets, Thermometer, Wind } from 'lucide-react';
-import { getCloudCoverInfo } from '@/lib/utils';
+import { ArrowUp } from 'lucide-react';
 
 interface DayDetailChartProps {
   dateStr: string;
@@ -12,8 +10,6 @@ interface DayDetailChartProps {
   currentIdx: number;
   hourlyData: HourlyData;
 }
-
-type ChartMode = 'all' | 'temp' | 'clouds' | 'precip';
 
 // Bezier Spline generator for smooth SVG curves
 function getSvgSpline(points: { x: number; y: number }[]): string {
@@ -37,11 +33,78 @@ function getSvgSpline(points: { x: number; y: number }[]): string {
   return d;
 }
 
+interface ColorStop {
+  value: number;
+  rgb: [number, number, number];
+}
+
+// Multi-stop linear color interpolator for continuous, smooth value transitions
+function interpolateMultiStops(value: number, stops: ColorStop[]): string {
+  if (value <= stops[0].value) {
+    const [r, g, b] = stops[0].rgb;
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+  const last = stops[stops.length - 1];
+  if (value >= last.value) {
+    const [r, g, b] = last.rgb;
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+  for (let i = 0; i < stops.length - 1; i++) {
+    const s1 = stops[i];
+    const s2 = stops[i + 1];
+    if (value >= s1.value && value <= s2.value) {
+      const f = (value - s1.value) / (s2.value - s1.value);
+      const r = Math.round(s1.rgb[0] + (s2.rgb[0] - s1.rgb[0]) * f);
+      const g = Math.round(s1.rgb[1] + (s2.rgb[1] - s1.rgb[1]) * f);
+      const b = Math.round(s1.rgb[2] + (s2.rgb[2] - s1.rgb[2]) * f);
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+  }
+  const [r, g, b] = last.rgb;
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+// Smooth temperature color gradient:
+// Sub-zero frost (violet/indigo) -> cool sky -> soft teal -> warm gold -> rich amber -> sunset coral
+const TEMP_COLOR_STOPS: ColorStop[] = [
+  { value: -10, rgb: [167, 139, 250] }, // -10°C: Violet frost (violet-400)
+  { value: -2,  rgb: [129, 140, 248] }, // -2°C:  Cold indigo (indigo-400)
+  { value: 4,   rgb: [96, 165, 250] },  // 4°C:   Chilly blue (blue-400)
+  { value: 10,  rgb: [56, 189, 248] },  // 10°C:  Crisp sky (sky-400)
+  { value: 16,  rgb: [45, 212, 191] },  // 16°C:  Soft teal (teal-400)
+  { value: 21,  rgb: [251, 191, 36] },  // 21°C:  Warm gold (amber-400)
+  { value: 26,  rgb: [251, 146, 60] },  // 26°C:  Warm amber-orange (orange-400)
+  { value: 32,  rgb: [248, 113, 113] }, // 32°C:  Warm coral (red-400)
+  { value: 38,  rgb: [244, 63, 94] },   // 38°C:  Hot crimson-rose (rose-500)
+];
+
+function getSmoothTempColor(temp: number): string {
+  return interpolateMultiStops(temp, TEMP_COLOR_STOPS);
+}
+
+// Smooth wind speed color gradient:
+// Calm (muted zinc) -> Gentle (soft slate) -> Moderate (sky blue) -> Brisk (teal) -> Strong (gold) -> Gale (coral)
+const WIND_COLOR_STOPS: ColorStop[] = [
+  { value: 0,  rgb: [156, 163, 175] }, // 0 km/h: calm muted gray (zinc-400)
+  { value: 7,  rgb: [125, 180, 215] }, // 7 km/h: gentle cool slate
+  { value: 13, rgb: [56, 189, 248] },  // 13 km/h: fresh sky blue (sky-400)
+  { value: 19, rgb: [45, 212, 191] },  // 19 km/h: brisk soft teal (teal-400)
+  { value: 27, rgb: [251, 191, 36] },  // 27 km/h: warm gold (amber-400)
+  { value: 37, rgb: [251, 146, 60] },  // 37 km/h: strong orange (orange-400)
+  { value: 50, rgb: [248, 113, 113] }, // 50+ km/h: gale coral (red-400)
+];
+
+function getSmoothWindColor(speed: number): string {
+  return interpolateMultiStops(speed, WIND_COLOR_STOPS);
+}
+
+// Geometry configuration: 28px colWidth to fit 12-14 hours on screen simultaneously
+const COL_WIDTH = 28;
+
 export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: DayDetailChartProps) {
-  const [mode, setMode] = useState<ChartMode>('all');
+  const colWidth = COL_WIDTH;
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const currentHourRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll screen so the expanded chart is not hidden behind the bottom toolbar
   useEffect(() => {
@@ -72,7 +135,7 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
           idx: i,
           timeStr,
           hourNum,
-          timeLabel: `${hourNum.toString().padStart(2, '0')}:00`,
+          timeLabel: hourNum.toString().padStart(2, '0'),
           temp: Math.round(hourlyData.temperature_2m[i] ?? 0),
           apparentTemp: Math.round(hourlyData.apparent_temperature?.[i] ?? hourlyData.temperature_2m[i] ?? 0),
           weathercode: hourlyData.weathercode[i] ?? 0,
@@ -81,6 +144,7 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
           precipAmount: hourlyData.precipitation?.[i] ?? 0,
           precipProb: hourlyData.precipitation_probability?.[i] ?? 0,
           windSpeed: Math.round(hourlyData.windspeed_10m?.[i] ?? 0),
+          windDir: Math.round(hourlyData.winddirection_10m?.[i] ?? 0),
         });
       }
     }
@@ -103,16 +167,33 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
     return { minTemp, maxTemp, avgCloud, totalRain, maxRain, hasRain };
   }, [hours]);
 
-  // Auto-scroll to current hour when expanding today's date
+  // Auto-scroll horizontal chart: "Teraz" on the left for today, 6:00 AM on the left for other days
   useEffect(() => {
-    if (isToday && currentHourRef.current) {
-      currentHourRef.current.scrollIntoView({
-        behavior: 'smooth',
-        inline: 'center',
-        block: 'nearest',
-      });
-    }
-  }, [isToday]);
+    const timer = setTimeout(() => {
+      if (!scrollContainerRef.current) return;
+
+      let targetHourIndex = -1;
+      if (isToday) {
+        targetHourIndex = hours.findIndex((h) => h.idx === currentIdx);
+        if (targetHourIndex === -1) {
+          const currentHour = new Date().getHours();
+          targetHourIndex = hours.findIndex((h) => h.hourNum === currentHour);
+        }
+      } else {
+        targetHourIndex = hours.findIndex((h) => h.hourNum === 6);
+      }
+
+      if (targetHourIndex >= 0) {
+        const targetScrollLeft = targetHourIndex * colWidth;
+        scrollContainerRef.current.scrollTo({
+          left: targetScrollLeft,
+          behavior: 'smooth',
+        });
+      }
+    }, 60);
+
+    return () => clearTimeout(timer);
+  }, [isToday, currentIdx, hours, colWidth]);
 
   if (hours.length === 0) {
     return (
@@ -122,26 +203,19 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
     );
   }
 
-  // Geometry configuration
-  const colWidth = 46;
   const chartWidth = hours.length * colWidth;
-  const svgHeight = 126;
+  const svgHeight = 100;
 
-  // Temperature scale mapping
-  const tempSpan = Math.max(2, stats.maxTemp - stats.minTemp);
+  // Temperature scale mapping (HERO chart with plenty of breathing room)
+  const tempSpan = Math.max(3, stats.maxTemp - stats.minTemp);
   const getTempY = (t: number) => {
-    // Map temp into Y range [20, 66] (leaving lower area for rain bars and cloud status)
-    return 66 - ((t - stats.minTemp) / tempSpan) * 44;
+    // Maps temperature comfortably between Y=20 (maxTemp) and Y=58 (minTemp)
+    return 58 - ((t - stats.minTemp) / tempSpan) * 38;
   };
 
-  // Cloud cover scale mapping (0-100% -> Y range [18, 76])
+  // Cloud cover scale mapping (subtle background reference)
   const getCloudY = (c: number) => {
-    return 76 - (c / 100) * 56;
-  };
-
-  // Precip probability scale mapping (0-100% -> Y range [18, 76])
-  const getPrecipY = (p: number) => {
-    return 76 - (p / 100) * 56;
+    return 64 - (c / 100) * 44;
   };
 
   // SVG Points
@@ -150,119 +224,57 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
     y: getTempY(h.temp),
   }));
 
-  const apparentTempPoints = hours.map((h, i) => ({
-    x: i * colWidth + colWidth / 2,
-    y: getTempY(h.apparentTemp),
-  }));
-
   const cloudPoints = hours.map((h, i) => ({
     x: i * colWidth + colWidth / 2,
     y: getCloudY(h.cloudCover),
   }));
 
-  const precipPoints = hours.map((h, i) => ({
-    x: i * colWidth + colWidth / 2,
-    y: getPrecipY(h.precipProb),
-  }));
-
   const tempSplineD = getSvgSpline(tempPoints);
-  const apparentTempSplineD = getSvgSpline(apparentTempPoints);
   const cloudSplineD = getSvgSpline(cloudPoints);
-  const precipSplineD = getSvgSpline(precipPoints);
 
-  // Gradient area under temperature curve
+  // Gradient areas
   const firstX = tempPoints[0]?.x ?? 0;
   const lastX = tempPoints[tempPoints.length - 1]?.x ?? chartWidth;
-  const tempAreaD = `${tempSplineD} L ${lastX.toFixed(1)} 76 L ${firstX.toFixed(1)} 76 Z`;
-  const cloudAreaD = `${cloudSplineD} L ${lastX.toFixed(1)} 78 L ${firstX.toFixed(1)} 78 Z`;
-  const precipAreaD = `${precipSplineD} L ${lastX.toFixed(1)} 78 L ${firstX.toFixed(1)} 78 Z`;
+  const tempAreaD = `${tempSplineD} L ${lastX.toFixed(1)} 68 L ${firstX.toFixed(1)} 68 Z`;
+  const cloudAreaD = `${cloudSplineD} L ${lastX.toFixed(1)} 68 L ${firstX.toFixed(1)} 68 Z`;
+
+  // Find peak and lowest temperature points to highlight
+  const maxTempIdx = hours.findIndex(h => h.temp === stats.maxTemp);
+  const minTempIdx = hours.findIndex(h => h.temp === stats.minTemp);
 
   // Max rain cap for bar scaling
   const maxRainCap = Math.max(1.5, Math.ceil(stats.maxRain * 1.25 * 10) / 10);
-  const cloudSummary = getCloudCoverInfo(stats.avgCloud);
 
   return (
-    <div ref={containerRef} className="my-2 p-3 rounded-2xl bg-zinc-950/75 border border-white/10 backdrop-blur-xl animate-in slide-in-from-top-1 fade-in duration-200 shadow-xl flex flex-col gap-2">
-      {/* Header with Title, Mode Switcher & Stats */}
-      <div className="flex flex-col gap-2 pb-2 border-b border-white/5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-bold text-zinc-200 uppercase tracking-wider">
-              Przebieg doby (24h)
-            </span>
-          </div>
-
-          {/* Metric View Mode Pills */}
-          <div className="flex items-center gap-1 bg-white/[0.04] p-0.5 rounded-lg border border-white/5">
-            <button
-              onClick={() => setMode('all')}
-              className={`px-2 py-0.5 text-[9px] font-semibold rounded-md transition-all ${
-                mode === 'all'
-                  ? 'bg-blue-500 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              Wszystko
-            </button>
-            <button
-              onClick={() => setMode('temp')}
-              className={`px-1.5 py-0.5 text-[9px] font-semibold rounded-md transition-all ${
-                mode === 'temp'
-                  ? 'bg-amber-500/80 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              Temp
-            </button>
-            <button
-              onClick={() => setMode('clouds')}
-              className={`px-1.5 py-0.5 text-[9px] font-semibold rounded-md transition-all ${
-                mode === 'clouds'
-                  ? 'bg-slate-500/80 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              Chmury
-            </button>
-            <button
-              onClick={() => setMode('precip')}
-              className={`px-1.5 py-0.5 text-[9px] font-semibold rounded-md transition-all ${
-                mode === 'precip'
-                  ? 'bg-cyan-500/80 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              Opady
-            </button>
-          </div>
+    <div
+      ref={containerRef}
+      className="my-2 -mx-2.5 sm:-mx-3.5 p-2 sm:p-2.5 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] flex flex-col gap-1"
+    >
+      {/* Header with Title, Range & Compact Legend */}
+      <div className="flex items-center justify-between px-2 pt-0.5 pb-1.5 border-b border-white/5">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-white tracking-wider uppercase">
+            Przebieg doby (24h)
+          </span>
+          <span className="text-[8.5px] px-1.5 py-0.5 rounded-md bg-white/[0.04] border border-white/5 font-mono text-zinc-400">
+            <strong className="text-amber-300">{stats.maxTemp}°</strong> / <span className="text-cyan-300">{stats.minTemp}°</span>
+          </span>
         </div>
 
-        {/* Quick Day Stats Badges */}
-        <div className="flex items-center justify-between text-[10px] text-zinc-400 px-0.5">
-          <div className="flex items-center gap-1">
-            <Thermometer size={11} className="text-amber-400" />
-            <span className="font-medium">
-              {stats.minTemp}° do <strong className="text-zinc-200">{stats.maxTemp}°</strong>
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <Cloud size={11} className="text-slate-300" />
-            <span className="font-medium">
-              {cloudSummary.label} ({stats.avgCloud}%)
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <CloudRain size={11} className="text-cyan-400" />
-            <span className="font-medium">
-              {stats.totalRain > 0 ? (
-                <strong className="text-cyan-300">{stats.totalRain.toFixed(1)} mm</strong>
-              ) : (
-                <span className="text-emerald-400/90">Sucho ✨</span>
-              )}
-            </span>
-          </div>
+        {/* Compact Legend */}
+        <div className="flex items-center gap-2.5 text-[8px] text-zinc-400 font-medium">
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-0.5 rounded-full bg-gradient-to-r from-sky-400 to-amber-400 shadow-[0_0_3px_rgba(56,189,248,0.5)]" />
+            <span className="text-zinc-300">Temp</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-xs bg-cyan-400/90" />
+            <span className="text-cyan-300">Opady</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <ArrowUp size={7.5} className="text-zinc-400 rotate-45" />
+            <span className="text-zinc-300">Wiatr</span>
+          </span>
         </div>
       </div>
 
@@ -273,37 +285,39 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
         className="overflow-x-auto [&::-webkit-scrollbar]{display:none} relative py-1 rounded-xl bg-white/[0.01]"
       >
         <div style={{ width: `${chartWidth}px` }} className="relative flex flex-col select-none">
-          {/* Top Row: Hours and Weather Icons */}
+          {/* Top Row: Hours with Day/Night and Current Hour indicator */}
           <div className="grid" style={{ gridTemplateColumns: `repeat(${hours.length}, ${colWidth}px)` }}>
             {hours.map((h) => {
               const isCurrent = isToday && h.idx === currentIdx;
               return (
                 <div
                   key={h.idx}
-                  ref={isCurrent ? currentHourRef : null}
                   data-current={isCurrent ? 'true' : undefined}
-                  className={`flex flex-col items-center gap-1 pb-1 pt-0.5 rounded-xl transition-all ${
+                  className={`flex flex-col items-center justify-center py-1 rounded-lg transition-all ${
                     isCurrent
-                      ? 'bg-blue-500/15 border border-blue-400/40 shadow-[0_0_12px_rgba(59,130,246,0.3)]'
-                      : 'hover:bg-white/[0.03]'
+                      ? 'bg-blue-500/25 border border-blue-400/50 shadow-[0_0_10px_rgba(59,130,246,0.3)]'
+                      : h.isDay
+                      ? 'bg-white/[0.03] border border-white/5'
+                      : 'bg-black/25 border border-white/[0.02]'
                   }`}
                 >
                   <span
-                    className={`text-[10px] tabular-nums font-semibold ${
-                      isCurrent ? 'text-blue-300 font-bold' : 'text-zinc-400'
+                    className={`text-[9px] tabular-nums font-mono leading-tight ${
+                      isCurrent
+                        ? 'text-blue-100 font-bold'
+                        : h.isDay
+                        ? 'text-zinc-200 font-medium'
+                        : 'text-zinc-500 font-normal'
                     }`}
                   >
                     {isCurrent ? 'Teraz' : h.timeLabel}
                   </span>
-                  <div className="my-0.5">
-                    <WeatherIcon code={h.weathercode} isDay={h.isDay} size={16} />
-                  </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Unified SVG Visualizer Layer */}
+          {/* Unified SVG Visualizer Layer: Prominent Dynamic Temperature Hero + Subtle Clouds */}
           <div className="relative w-full" style={{ height: `${svgHeight}px` }}>
             <svg
               className="absolute inset-0 w-full h-full pointer-events-none"
@@ -311,296 +325,228 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
               preserveAspectRatio="none"
             >
               <defs>
-                {/* Temperature Gradient Area */}
+                {/* Dynamic Temperature Horizontal Gradient (adapts smoothly to temperature across the day) */}
+                <linearGradient id={`tempLineGrad-${dateStr}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                  {hours.map((h, i) => {
+                    const pct = ((i + 0.5) / hours.length) * 100;
+                    return <stop key={i} offset={`${pct.toFixed(1)}%`} stopColor={getSmoothTempColor(h.temp)} />;
+                  })}
+                </linearGradient>
+
+                {/* Temperature Gradient Area (Subtle glassmorphic depth glow) */}
                 <linearGradient id={`tempAreaGrad-${dateStr}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.28" />
-                  <stop offset="70%" stopColor="#f59e0b" stopOpacity="0.05" />
-                  <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
+                  <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.16" />
+                  <stop offset="60%" stopColor="#38bdf8" stopOpacity="0.04" />
+                  <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
                 </linearGradient>
 
-                {/* Cloud Cover Gradient Area */}
+                {/* Cloud Cover Gradient Area (Subtle background) */}
                 <linearGradient id={`cloudAreaGrad-${dateStr}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.25" />
-                  <stop offset="80%" stopColor="#94a3b8" stopOpacity="0.04" />
+                  <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.08" />
                   <stop offset="100%" stopColor="#94a3b8" stopOpacity="0" />
-                </linearGradient>
-
-                {/* Precipitation Probability Area */}
-                <linearGradient id={`precipAreaGrad-${dateStr}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.3" />
-                  <stop offset="85%" stopColor="#06b6d4" stopOpacity="0.05" />
-                  <stop offset="100%" stopColor="#06b6d4" stopOpacity="0" />
                 </linearGradient>
               </defs>
 
+              {/* Night Sky Background Shading across night hours */}
+              {hours.map((h, i) => {
+                if (h.isDay) return null;
+                return (
+                  <rect
+                    key={`night-${i}`}
+                    x={i * colWidth}
+                    y={0}
+                    width={colWidth}
+                    height={svgHeight}
+                    fill="#020617"
+                    fillOpacity="0.22"
+                  />
+                );
+              })}
+
               {/* Horizontal Reference Grid Lines */}
-              <line x1="0" y1="22" x2={chartWidth} y2="22" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-              <line x1="0" y1="44" x2={chartWidth} y2="44" stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
-              <line x1="0" y1="66" x2={chartWidth} y2="66" stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-              {/* Baseline */}
-              <line x1="0" y1="104" x2={chartWidth} y2="104" stroke="rgba(255,255,255,0.08)" />
+              <line x1="0" y1="20" x2={chartWidth} y2="20" stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
+              <line x1="0" y1="39" x2={chartWidth} y2="39" stroke="rgba(255,255,255,0.04)" strokeDasharray="3 3" />
+              <line x1="0" y1="58" x2={chartWidth} y2="58" stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
 
-              {/* --- MODE: CLOUDS ONLY --- */}
-              {mode === 'clouds' && (
-                <>
-                  <path d={cloudAreaD} fill={`url(#cloudAreaGrad-${dateStr})`} />
-                  <path
-                    d={cloudSplineD}
-                    fill="none"
-                    stroke="#94a3b8"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    className="drop-shadow-[0_0_6px_rgba(148,163,184,0.5)]"
+              {/* Guide Line for Current Hour (Teraz) */}
+              {isToday && currentIdx >= 0 && (() => {
+                const curHourItem = hours.find(h => h.idx === currentIdx);
+                if (!curHourItem) return null;
+                const curX = hours.indexOf(curHourItem) * colWidth + colWidth / 2;
+                return (
+                  <line
+                    x1={curX}
+                    y1={6}
+                    x2={curX}
+                    y2={svgHeight}
+                    stroke="#3b82f6"
+                    strokeWidth="1"
+                    strokeDasharray="2 2"
+                    opacity="0.45"
                   />
-                  {cloudPoints.map((p, idx) => (
-                    <g key={idx}>
-                      <circle cx={p.x} cy={p.y} r="2.5" fill="#94a3b8" stroke="#09090b" strokeWidth="1" />
-                      <text
-                        x={p.x}
-                        y={Math.max(12, p.y - 5)}
-                        fill="#cbd5e1"
-                        fontSize="8.5"
-                        fontWeight="bold"
-                        textAnchor="middle"
-                      >
-                        {hours[idx].cloudCover}%
-                      </text>
-                    </g>
-                  ))}
-                </>
-              )}
+                );
+              })()}
 
-              {/* --- MODE: PRECIP ONLY --- */}
-              {mode === 'precip' && (
-                <>
-                  {stats.hasRain && <path d={precipAreaD} fill={`url(#precipAreaGrad-${dateStr})`} />}
-                  <path
-                    d={precipSplineD}
-                    fill="none"
-                    stroke="#06b6d4"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    className="drop-shadow-[0_0_6px_rgba(6,182,212,0.6)]"
-                  />
-                  {precipPoints.map((p, idx) => {
-                    const prob = hours[idx].precipProb;
-                    if (prob < 15) return null;
-                    return (
-                      <g key={idx}>
-                        <circle cx={p.x} cy={p.y} r="2.5" fill="#06b6d4" stroke="#09090b" strokeWidth="1" />
-                        <text
-                          x={p.x}
-                          y={Math.max(12, p.y - 5)}
-                          fill="#67e8f9"
-                          fontSize="8.5"
-                          fontWeight="bold"
-                          textAnchor="middle"
-                        >
-                          {prob}%
-                        </text>
-                      </g>
-                    );
-                  })}
-                </>
-              )}
+              {/* 1. Subtle Cloud Cover Line in Background (dashed, non-dominating) */}
+              <path d={cloudAreaD} fill={`url(#cloudAreaGrad-${dateStr})`} />
+              <path
+                d={cloudSplineD}
+                fill="none"
+                stroke="#94a3b8"
+                strokeWidth="1"
+                strokeDasharray="3 3"
+                strokeLinecap="round"
+                opacity="0.35"
+              />
 
-              {/* --- MODE: TEMP ONLY --- */}
-              {mode === 'temp' && (
-                <>
-                  {/* Apparent Temp Dashed Curve */}
-                  <path
-                    d={apparentTempSplineD}
-                    fill="none"
-                    stroke="#a78bfa"
-                    strokeWidth="1.5"
-                    strokeDasharray="3 3"
-                    strokeLinecap="round"
-                    opacity="0.8"
-                  />
-                  {/* Actual Temp Area & Curve */}
-                  <path d={tempAreaD} fill={`url(#tempAreaGrad-${dateStr})`} />
-                  <path
-                    d={tempSplineD}
-                    fill="none"
-                    stroke="#fbbf24"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    className="drop-shadow-[0_0_8px_rgba(251,191,36,0.7)]"
-                  />
-                  {tempPoints.map((p, idx) => {
-                    const isCurrent = isToday && hours[idx].idx === currentIdx;
-                    return (
-                      <g key={idx}>
-                        {isCurrent && (
-                          <circle cx={p.x} cy={p.y} r="6" fill="none" stroke="#60a5fa" strokeWidth="1.5" className="animate-pulse" />
-                        )}
-                        <circle cx={p.x} cy={p.y} r="3" fill="#fbbf24" stroke="#09090b" strokeWidth="1" />
-                        <text
-                          x={p.x}
-                          y={p.y - 6}
-                          fill="#ffffff"
-                          fontSize="9.5"
-                          fontWeight="bold"
-                          textAnchor="middle"
-                        >
-                          {hours[idx].temp}°
-                        </text>
-                      </g>
-                    );
-                  })}
-                </>
-              )}
+              {/* 2. Temperature Area & Glowing Dynamic Gradient Spline (HERO) */}
+              <path d={tempAreaD} fill={`url(#tempAreaGrad-${dateStr})`} />
+              <path
+                d={tempSplineD}
+                fill="none"
+                stroke={`url(#tempLineGrad-${dateStr})`}
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                className="drop-shadow-[0_1px_4px_rgba(0,0,0,0.5)]"
+              />
 
-              {/* --- MODE: ALL (COMBINED DEFAULT) --- */}
-              {mode === 'all' && (
-                <>
-                  {/* Subtle Cloud Cover Backfill */}
-                  <path d={cloudAreaD} fill={`url(#cloudAreaGrad-${dateStr})`} opacity="0.4" />
+              {/* 3. Temperature Nodes & Degree Labels (Dynamic Smooth Gradient) */}
+              {tempPoints.map((p, idx) => {
+                const isCurrent = isToday && hours[idx].idx === currentIdx;
+                const isPeak = idx === maxTempIdx;
+                const isLow = idx === minTempIdx && stats.maxTemp !== stats.minTemp;
+                const tColor = getSmoothTempColor(hours[idx].temp);
 
-                  {/* Temperature Area & Glowing Spline */}
-                  <path d={tempAreaD} fill={`url(#tempAreaGrad-${dateStr})`} />
-                  <path
-                    d={tempSplineD}
-                    fill="none"
-                    stroke="#fbbf24"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    className="drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]"
-                  />
+                return (
+                  <g key={idx}>
+                    {/* Current Hour Pulse */}
+                    {isCurrent && (
+                      <circle cx={p.x} cy={p.y} r="5" fill="none" stroke="#60a5fa" strokeWidth="1.5" className="animate-pulse" />
+                    )}
 
-                  {/* Temperature Nodes & Degree Labels */}
-                  {tempPoints.map((p, idx) => {
-                    const isCurrent = isToday && hours[idx].idx === currentIdx;
-                    return (
-                      <g key={idx}>
-                        {isCurrent && (
-                          <circle cx={p.x} cy={p.y} r="5.5" fill="none" stroke="#60a5fa" strokeWidth="1.5" className="animate-pulse" />
-                        )}
-                        <circle cx={p.x} cy={p.y} r="2.8" fill="#fbbf24" stroke="#09090b" strokeWidth="1" />
-                        <text
-                          x={p.x}
-                          y={p.y - 6}
-                          fill="#ffffff"
-                          fontSize="9.5"
-                          fontWeight="bold"
-                          textAnchor="middle"
-                        >
-                          {hours[idx].temp}°
-                        </text>
-                      </g>
-                    );
-                  })}
-                </>
-              )}
+                    {/* Peak / Low Highlight Halos */}
+                    {(isPeak || isLow) && (
+                      <circle cx={p.x} cy={p.y} r="4.2" fill="none" stroke={tColor} strokeWidth="1" opacity="0.75" />
+                    )}
+
+                    {/* Main Dot with matching dynamic temperature color */}
+                    <circle
+                      cx={p.x}
+                      cy={p.y}
+                      r={isPeak || isCurrent ? "2.8" : "2.2"}
+                      fill={tColor}
+                      stroke="#09090b"
+                      strokeWidth="1"
+                    />
+
+                    {/* Degree Label: Clean crisp white text for perfect clarity and elegance */}
+                    <text
+                      x={p.x}
+                      y={p.y - 6}
+                      fill="#ffffff"
+                      fontSize="9"
+                      fontWeight={isPeak || isCurrent ? "bold" : "600"}
+                      textAnchor="middle"
+                      className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
+                    >
+                      {hours[idx].temp}°
+                    </text>
+                  </g>
+                );
+              })}
             </svg>
 
-            {/* Precipitation Columns (Overlay anchored to baseline) */}
+            {/* Precipitation Columns: ONLY mm amount and bars, anchored directly to bottom baseline */}
             <div
               className="absolute inset-0 grid pointer-events-none"
               style={{ gridTemplateColumns: `repeat(${hours.length}, ${colWidth}px)` }}
             >
               {hours.map((h, idx) => {
                 const hasAmount = h.precipAmount > 0;
-                const hasProb = h.precipProb >= 15;
                 const barHeight = hasAmount
-                  ? Math.max(7, Math.min(26, Math.round((h.precipAmount / maxRainCap) * 24)))
-                  : hasProb
-                  ? 3
+                  ? Math.max(6, Math.min(24, Math.round((h.precipAmount / maxRainCap) * 22)))
                   : 0;
 
                 return (
-                  <div key={idx} className="flex flex-col items-center justify-end h-[104px] pb-0.5">
-                    {/* MM amount or Probability text */}
+                  <div key={idx} className="flex flex-col items-center justify-end h-full pb-0.5">
                     {hasAmount ? (
-                      <span className="text-[7.5px] tabular-nums font-bold text-cyan-300 drop-shadow-[0_0_4px_rgba(34,211,238,0.7)] leading-none mb-0.5">
-                        {h.precipAmount.toFixed(1)}
-                      </span>
-                    ) : hasProb ? (
-                      <span className="text-[7px] tabular-nums font-semibold text-cyan-400/80 leading-none mb-0.5">
-                        {h.precipProb}%
-                      </span>
-                    ) : (
-                      <span className="text-[7px] text-zinc-700 leading-none mb-0.5">·</span>
-                    )}
-
-                    {/* Translucent Glass Bar for Rain */}
-                    {barHeight > 0 && (
-                      <div
-                        className={`w-3 rounded-t-sm transition-all duration-300 ${
-                          hasAmount
-                            ? 'bg-gradient-to-t from-blue-600/90 to-cyan-400/80 border-t border-x border-cyan-300/50 shadow-[0_0_6px_rgba(34,211,238,0.4)]'
-                            : 'bg-cyan-500/25 rounded-full'
-                        }`}
-                        style={{ height: `${barHeight}px` }}
-                      />
-                    )}
+                      <>
+                        <span className="text-[7.5px] tabular-nums font-extrabold text-cyan-300 drop-shadow-[0_0_4px_rgba(34,211,238,0.8)] leading-none mb-0.5">
+                          {h.precipAmount.toFixed(1)}mm
+                        </span>
+                        <div
+                          className="w-3 rounded-t-sm bg-gradient-to-t from-blue-600 to-cyan-400 border-t border-x border-cyan-300/50 shadow-[0_0_6px_rgba(34,211,238,0.4)]"
+                          style={{ height: `${barHeight}px` }}
+                        />
+                      </>
+                    ) : null}
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Bottom Indicators Row: Cloud Cover and Rain Details */}
+          {/* Row 1: Dedicated Precipitation Probability (%) Row (directly under rain bars) */}
           <div
-            className="grid pt-1 border-t border-white/5"
+            className="grid py-1 border-t border-white/10 items-center"
+            style={{ gridTemplateColumns: `repeat(${hours.length}, ${colWidth}px)` }}
+          >
+            {hours.map((h) => (
+              <div
+                key={h.idx}
+                className="flex flex-col items-center justify-center py-0.5 px-0.5"
+              >
+                {h.precipProb >= 15 ? (
+                  <span
+                    className={`text-[8px] tabular-nums leading-none ${
+                      h.precipProb >= 70
+                        ? 'text-cyan-200 font-extrabold drop-shadow-[0_0_4px_rgba(34,211,238,0.5)]'
+                        : h.precipProb >= 40
+                        ? 'text-cyan-300 font-semibold'
+                        : 'text-cyan-400/75 font-medium'
+                    }`}
+                  >
+                    {h.precipProb}%
+                  </span>
+                ) : (
+                  <span className="text-[7.5px] text-zinc-600 leading-none">·</span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Row 2: Dedicated Wind Speed Row [km/h] with Smooth Direction Arrows & Values Gradient */}
+          <div
+            className="grid py-1 border-t border-white/5 items-center"
             style={{ gridTemplateColumns: `repeat(${hours.length}, ${colWidth}px)` }}
           >
             {hours.map((h) => {
-              const isCurrent = isToday && h.idx === currentIdx;
+              const windColor = getSmoothWindColor(h.windSpeed);
               return (
                 <div
                   key={h.idx}
-                  className={`flex flex-col items-center gap-1 py-1 px-0.5 rounded-lg transition-all ${
-                    isCurrent ? 'bg-blue-500/10' : ''
-                  }`}
+                  className="flex items-center justify-center gap-0.5 py-0.5 px-0.5"
+                  title={`Wiatr: ${h.windSpeed} km/h, kierunek: ${h.windDir}°`}
                 >
-                  {/* Cloud cover metric & mini gauge */}
-                  <div className="flex items-center gap-0.5 text-[8.5px] font-medium text-slate-300">
-                    <Cloud size={8} className="text-slate-400" />
-                    <span>{h.cloudCover}%</span>
-                  </div>
-
-                  <div className="w-6 h-1 bg-white/10 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-sky-400 to-slate-300 rounded-full"
-                      style={{ width: `${Math.min(100, Math.max(10, h.cloudCover))}%` }}
-                    />
-                  </div>
-
-                  {/* Wind / Rain info */}
-                  <div className="text-[8px] text-zinc-500 flex items-center gap-0.5 mt-0.5">
-                    {h.precipAmount > 0 ? (
-                      <span className="text-cyan-400 font-bold flex items-center">
-                        <Droplets size={7} className="mr-0.5" />
-                        {h.precipAmount.toFixed(1)}mm
-                      </span>
-                    ) : (
-                      <span className="flex items-center">
-                        <Wind size={7} className="mr-0.5 text-zinc-600" />
-                        {h.windSpeed}
-                      </span>
-                    )}
-                  </div>
+                  <ArrowUp
+                    size={7.5}
+                    style={{
+                      transform: `rotate(${h.windDir + 180}deg)`,
+                      color: windColor,
+                    }}
+                    className="shrink-0 transition-transform"
+                    strokeWidth={2.5}
+                  />
+                  <span
+                    style={{ color: windColor }}
+                    className="text-[8.5px] font-mono tabular-nums font-semibold leading-none"
+                  >
+                    {h.windSpeed}
+                  </span>
                 </div>
               );
             })}
           </div>
-        </div>
-      </div>
-
-      {/* Chart Legend */}
-      <div className="flex items-center justify-between text-[9px] text-zinc-400 px-1 pt-1 border-t border-white/5 font-medium">
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-0.5 rounded-full bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.8)] inline-block" />
-          <span>Temperatura (°C)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-1 rounded-xs bg-slate-400/60 inline-block" />
-          <span>Zachmurzenie (%)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-xs bg-cyan-400/80 border border-cyan-300/40 inline-block" />
-          <span>Opady (mm / %)</span>
         </div>
       </div>
     </div>

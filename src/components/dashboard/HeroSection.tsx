@@ -246,24 +246,25 @@ export function HeroSection({
             <span className="text-4xl font-light text-blue-400 ml-1">°</span>
           </div>
 
-          <div className="flex items-center gap-1.5 mt-2">
-            <span className="text-sm font-bold text-zinc-100 capitalize tracking-tight drop-shadow-sm">
-              {weatherInfo.label}
-            </span>
-            <span className="text-zinc-600 font-bold">•</span>
-            <span className="text-xs text-zinc-300 font-medium">
-              Odcz. <strong className="text-white font-bold">{formatTemp(feelsLike)}</strong>
-            </span>
-          </div>
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            {/* Status & Feels Like Pill */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 border border-white/10 backdrop-blur-md shadow-sm">
+              <span className="text-xs font-bold text-zinc-100 capitalize tracking-tight drop-shadow-sm">{weatherInfo.label}</span>
+              <span className="w-1 h-1 rounded-full bg-zinc-400" />
+              <span className="text-[11px] text-zinc-300 font-medium">
+                Odcz. <strong className="text-white font-bold">{formatTemp(feelsLike)}</strong>
+              </span>
+            </div>
 
-          <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-medium mt-1">
-            <span className="text-orange-400 flex items-center font-bold">
-              <ArrowUp size={11} className="mr-0.5" />{Math.round(maxTemp)}°
-            </span>
-            <span className="text-zinc-600 font-bold">/</span>
-            <span className="text-blue-400 flex items-center font-bold">
-              <ArrowDown size={11} className="mr-0.5" />{Math.round(minTemp)}°
-            </span>
+            {/* Min/Max Temp Pill */}
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.05] border border-white/5 backdrop-blur-md shadow-sm">
+              <span className="text-orange-400 flex items-center text-[11px] font-bold">
+                <ArrowUp size={11} className="mr-0.5" />{Math.round(maxTemp)}°
+              </span>
+              <span className="text-blue-400 flex items-center text-[11px] font-bold">
+                <ArrowDown size={11} className="mr-0.5" />{Math.round(minTemp)}°
+              </span>
+            </div>
           </div>
         </div>
 

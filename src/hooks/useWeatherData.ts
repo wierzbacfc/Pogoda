@@ -19,20 +19,13 @@ export function useWeatherData(cities: City[], gpsCoordsReady: boolean) {
 
     const cacheKey = `wpwa_weather_${city.id}`;
 
-    // 1. Check cache
+    // 1. Check cache (Stale-While-Revalidate)
     try {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
         const parsed = JSON.parse(cached);
-        const age = Date.now() - (parsed.timestamp || 0);
-        let validCache = age < CACHE_TTL;
-
-        if (validCache && city.isGps && parsed.coords && city.latitude != null && city.longitude != null) {
-          const dist = gpsDistance(city.latitude, city.longitude, parsed.coords.latitude, parsed.coords.longitude);
-          if (dist > 1) validCache = false;
-        }
-
-        if (validCache && parsed.data && parsed.data.hourly?.time?.length > 0) {
+        // Zawsze pokazujemy dane z cache od razu, by przyspieszyć start aplikacji
+        if (parsed.data && parsed.data.hourly?.time?.length > 0) {
           const result: WeatherResult = {
             hourly: parsed.data.hourly,
             daily: parsed.data.daily,
@@ -47,7 +40,7 @@ export function useWeatherData(cities: City[], gpsCoordsReady: boolean) {
             },
           };
           setWeatherMap(prev => new Map(prev).set(city.id, result));
-          return;
+          // Nie blokujemy (brak return) - aplikacja załaduje najnowsze dane w tle
         }
       }
     } catch (e) {
