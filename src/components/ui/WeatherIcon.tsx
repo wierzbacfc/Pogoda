@@ -1,7 +1,20 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { getWeatherInfo } from '@/lib/weather-codes';
+import {
+  Sun,
+  Moon,
+  CloudSun,
+  CloudMoon,
+  Cloud,
+  CloudDrizzle,
+  CloudRain,
+  CloudLightning,
+  Snowflake,
+  CloudFog,
+  HelpCircle,
+} from 'lucide-react';
 
 interface WeatherIconProps {
   code: number;
@@ -11,8 +24,18 @@ interface WeatherIconProps {
   glow?: boolean;
 }
 
+function getBasePath(): string {
+  if (typeof window !== 'undefined') {
+    if (window.location.pathname.startsWith('/Pogoda')) {
+      return '/Pogoda';
+    }
+  }
+  return process.env.NEXT_PUBLIC_BASE_PATH || '';
+}
+
 /**
  * WeatherIcon component rendering authentic 3D Fluent Volumetric weather assets
+ * with automatic base path resolution and resilient vector fallback.
  */
 export function WeatherIcon({
   code,
@@ -21,42 +44,74 @@ export function WeatherIcon({
   className = '',
   glow = true,
 }: WeatherIconProps) {
+  const [hasError, setHasError] = useState(false);
   const { iconType } = getWeatherInfo(code, isDay);
 
   let finalIconType = iconType;
   if (finalIconType === 'Sun' && !isDay) finalIconType = 'Moon';
   if (finalIconType === 'CloudSun' && !isDay) finalIconType = 'CloudMoon';
 
-  const getIconSrc = () => {
+  const getIconFile = () => {
     switch (finalIconType) {
       case 'Sun':
-        return '/icons/weather-3d/sun.png';
+        return 'sun.png';
       case 'Moon':
-        return '/icons/weather-3d/crescent_moon.png';
+        return 'crescent_moon.png';
       case 'CloudSun':
-        return '/icons/weather-3d/sun_cloud.png';
+        return 'sun_cloud.png';
       case 'CloudMoon':
-        return '/icons/weather-3d/moon_cloud.png';
+        return 'moon_cloud.png';
       case 'Cloud':
-        return '/icons/weather-3d/cloud.png';
+        return 'cloud.png';
       case 'CloudDrizzle':
-        return '/icons/weather-3d/sun_rain.png';
+        return 'sun_rain.png';
       case 'CloudRain':
-        return '/icons/weather-3d/cloud_rain.png';
+        return 'cloud_rain.png';
       case 'CloudLightning':
-        return '/icons/weather-3d/cloud_storm.png';
+        return 'cloud_storm.png';
       case 'Snowflake':
-        return '/icons/weather-3d/snowflake.png';
+        return 'snowflake.png';
       case 'CloudSnow':
-        return '/icons/weather-3d/cloud_snow.png';
+        return 'cloud_snow.png';
       case 'CloudFog':
-        return '/icons/weather-3d/fog.png';
+        return 'fog.png';
       default:
-        return '/icons/weather-3d/sun_cloud.png';
+        return 'sun_cloud.png';
     }
   };
 
-  const src = getIconSrc();
+  const basePath = getBasePath();
+  const src = `${basePath}/icons/weather-3d/${getIconFile()}`;
+
+  const renderFallbackIcon = () => {
+    const iconProps = { size, className: 'drop-shadow-sm' };
+    switch (finalIconType) {
+      case 'Sun':
+        return <Sun {...iconProps} className="text-amber-400 fill-amber-400/20" />;
+      case 'Moon':
+        return <Moon {...iconProps} className="text-indigo-300 fill-indigo-300/20" />;
+      case 'CloudSun':
+        return <CloudSun {...iconProps} className="text-amber-300" />;
+      case 'CloudMoon':
+        return <CloudMoon {...iconProps} className="text-indigo-200" />;
+      case 'Cloud':
+        return <Cloud {...iconProps} className="text-zinc-300 fill-white/10" />;
+      case 'CloudDrizzle':
+        return <CloudDrizzle {...iconProps} className="text-cyan-400" />;
+      case 'CloudRain':
+        return <CloudRain {...iconProps} className="text-blue-400" />;
+      case 'CloudLightning':
+        return <CloudLightning {...iconProps} className="text-amber-400" />;
+      case 'Snowflake':
+        return <Snowflake {...iconProps} className="text-sky-300" />;
+      case 'CloudSnow':
+        return <Snowflake {...iconProps} className="text-sky-300" />;
+      case 'CloudFog':
+        return <CloudFog {...iconProps} className="text-zinc-400" />;
+      default:
+        return <HelpCircle {...iconProps} className="text-zinc-400" />;
+    }
+  };
 
   return (
     <div
@@ -65,14 +120,19 @@ export function WeatherIcon({
       } ${className}`}
       style={{ width: size, height: size }}
     >
-      <img
-        src={src}
-        alt={finalIconType}
-        width={size}
-        height={size}
-        className="w-full h-full object-contain pointer-events-none drop-shadow-md"
-        loading="eager"
-      />
+      {!hasError ? (
+        <img
+          src={src}
+          alt={finalIconType}
+          width={size}
+          height={size}
+          className="w-full h-full object-contain pointer-events-none drop-shadow-md"
+          loading="eager"
+          onError={() => setHasError(true)}
+        />
+      ) : (
+        renderFallbackIcon()
+      )}
     </div>
   );
 }

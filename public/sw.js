@@ -1,12 +1,30 @@
-const CACHE_NAME = 'pogoda-pwa-v2';
+const CACHE_NAME = 'pogoda-pwa-v4';
 
 const STATIC_ASSETS = [
   './',
   './manifest.json',
+  './icons/apple-touch-icon.png',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-maskable-512.png',
+  './icons/weather-3d/cloud.png',
+  './icons/weather-3d/cloud_lightning.png',
+  './icons/weather-3d/cloud_rain.png',
+  './icons/weather-3d/cloud_snow.png',
+  './icons/weather-3d/cloud_storm.png',
+  './icons/weather-3d/crescent_moon.png',
+  './icons/weather-3d/droplet.png',
+  './icons/weather-3d/fog.png',
+  './icons/weather-3d/moon_cloud.png',
+  './icons/weather-3d/snowflake.png',
+  './icons/weather-3d/sun.png',
+  './icons/weather-3d/sun_cloud.png',
+  './icons/weather-3d/sun_rain.png',
 ];
 
-// Install: cache static assets
+// Install: cache static assets immediately and skip waiting
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
@@ -14,7 +32,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate: clean old caches
+// Activate: clean old caches and take immediate control
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -64,20 +82,20 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => {
           return caches.match(event.request).then((cached) => {
-            return cached || caches.match('/');
+            return cached || caches.match('./') || caches.match('/');
           });
         })
     );
     return;
   }
 
-  // For static assets: stale-while-revalidate
+  // For static assets: stale-while-revalidate with subpath/relative fallback
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const fetchPromise = fetch(event.request)
         .then((response) => {
-          // Update cache with fresh version
-          if (response.ok) {
+          // Update cache with fresh version if successful
+          if (response && response.ok) {
             const responseClone = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(event.request, responseClone);
@@ -86,12 +104,23 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // Network failed, cached version is the fallback
+          // Network failed, return cached if available
           return cached;
         });
 
-      // Return cached version immediately, update in background
-      return cached || fetchPromise;
+      if (cached) {
+        return cached;
+      }
+
+      // If not cached directly and it's a weather icon, try matching by asset name
+      if (url.pathname.includes('/icons/weather-3d/')) {
+        const filename = url.pathname.split('/').pop();
+        return caches.match(`./icons/weather-3d/${filename}`).then((fallbackCached) => {
+          return fallbackCached || fetchPromise;
+        });
+      }
+
+      return fetchPromise;
     })
   );
 });
