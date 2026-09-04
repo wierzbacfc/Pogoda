@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pogoda-pwa-v4';
+const CACHE_NAME = 'pogoda-pwa-v6';
 
 const STATIC_ASSETS = [
   './',
@@ -22,9 +22,8 @@ const STATIC_ASSETS = [
   './icons/weather-3d/sun_rain.png',
 ];
 
-// Install: cache static assets immediately and skip waiting
+// Install: cache static assets into the new cache
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS);

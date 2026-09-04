@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/useToast';
 import DynamicBackground from '@/components/DynamicBackground';
 import { BottomToolbar } from '@/components/BottomToolbar';
 import { Toast } from '@/components/ui/Toast';
+import { UpdatePrompt } from '@/components/ui/UpdatePrompt';
 import { WeatherSkeleton } from '@/components/ui/Skeleton';
 
 import { HeroSection } from '@/components/dashboard/HeroSection';
@@ -428,6 +429,9 @@ export default function WeatherApp() {
           }}
           showToast={showToast}
         />
+
+        {/* PWA Update Banner with automatic detection */}
+        <UpdatePrompt />
 
         {/* Dedicated Settings Modal */}
         <SettingsModal

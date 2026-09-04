@@ -203,6 +203,40 @@ export default function SettingsModal({
 
           <div className="border-t border-white/5" />
 
+          <div className="flex items-center justify-between">
+            <span className="text-zinc-400 font-medium">Aktualizacje</span>
+            <button
+              onClick={async () => {
+                if ('serviceWorker' in navigator) {
+                  try {
+                    const reg = await navigator.serviceWorker.getRegistration();
+                    if (reg) {
+                      await reg.update();
+                      if (reg.waiting) {
+                        showToast?.('Znaleziono aktualizację! Przeładowuję...', 'info');
+                        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        setTimeout(() => window.location.reload(), 600);
+                      } else {
+                        showToast?.('Aplikacja jest w najnowszej wersji', 'success');
+                      }
+                    } else {
+                      showToast?.('Brak aktywnego Service Workera', 'info');
+                    }
+                  } catch {
+                    showToast?.('Nie udało się sprawdzić aktualizacji', 'error');
+                  }
+                } else {
+                  showToast?.('Przeglądarka nie obsługuje Service Worker', 'info');
+                }
+              }}
+              className="text-[11px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 underline"
+            >
+              <RefreshCw size={11} /> Sprawdź aktualizacje
+            </button>
+          </div>
+
+          <div className="border-t border-white/5" />
+
           <button
             onClick={handleClearData}
             className="w-full py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] active:scale-95 border border-white/5 text-[11px] text-zinc-300 font-medium transition-all"
