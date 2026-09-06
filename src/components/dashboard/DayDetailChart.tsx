@@ -143,9 +143,12 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
   const [isScrubbing, setIsScrubbing] = useState<boolean>(false);
   const [isClosing, setIsClosing] = useState<boolean>(false);
 
-  // Refs for tracking drag state and preventing race conditions
+  // Refs for tracking long-press, drag state and preventing race conditions
   const isScrubbingRef = useRef<boolean>(false);
   const isClosingRef = useRef<boolean>(false);
+  const isLongPressActiveRef = useRef<boolean>(false);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number; time: number }>({ x: 0, y: 0, time: 0 });
   const autoDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
   const closeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const autoScrollRafRef = useRef<number | null>(null);
@@ -198,12 +201,12 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
     openOrUpdateHud(idx);
   }, [colWidth, hours.length, openOrUpdateHud]);
 
-  // Continuous edge auto-scrolling when holding finger or mouse near the boundaries
+  // Continuous edge auto-scrolling when holding finger or mouse near the boundaries while scrubbing
   const startEdgeAutoScroll = useCallback(() => {
     if (autoScrollRafRef.current) return;
 
     const loop = () => {
-      if (!scrollContainerRef.current || currentPointerXRef.current === null) {
+      if (!scrollContainerRef.current || currentPointerXRef.current === null || !isScrubbingRef.current) {
         autoScrollRafRef.current = null;
         return;
       }
@@ -244,74 +247,99 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
   }, []);
 
   // Native touch gesture engine on scrollContainer:
-  // Distinguishes horizontal scrubbing vs vertical page scroll and prevents page jump
+  // Immediate movement scrolls the chart normally; holding finger for >= 500ms activates the HUD & scrubbing
   useEffect(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
 
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let isTracking = false;
-    let isScrubbingGesture = false;
-
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
       const touch = e.touches[0];
-      touchStartX = touch.clientX;
-      touchStartY = touch.clientY;
-      isTracking = true;
-      isScrubbingGesture = false;
-      dragDistanceRef.current = 0;
-      currentPointerXRef.current = touch.clientX;
+      const clientX = touch.clientX;
+      const clientY = touch.clientY;
 
-      // Immediately highlight and open HUD for the touched hour
-      updateScrubPosition(touch.clientX);
-      startEdgeAutoScroll();
+      touchStartPosRef.current = { x: clientX, y: clientY, time: Date.now() };
+      isLongPressActiveRef.current = false;
+      dragDistanceRef.current = 0;
+      currentPointerXRef.current = clientX;
+
+      // Clear any prior pending long press timer
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+
+      // START LONG-PRESS TIMER (500ms = pół sekundy)
+      longPressTimerRef.current = setTimeout(() => {
+        // User held finger still for 500ms -> ACTIVATE HUD & SCRUBBER!
+        isLongPressActiveRef.current = true;
+        isScrubbingRef.current = true;
+        setIsScrubbing(true);
+
+        // Haptic feedback if supported (35ms clean bump)
+        try {
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate(35);
+          }
+        } catch (_) {}
+
+        // Open HUD and lock on current hour
+        updateScrubPosition(clientX);
+        startEdgeAutoScroll();
+      }, 500);
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      if (!isTracking || e.touches.length !== 1) return;
+      if (e.touches.length !== 1) return;
       const touch = e.touches[0];
-      const dx = Math.abs(touch.clientX - touchStartX);
-      const dy = Math.abs(touch.clientY - touchStartY);
+      const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+      const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
       dragDistanceRef.current = Math.max(dragDistanceRef.current, dx);
       currentPointerXRef.current = touch.clientX;
 
-      if (!isScrubbingGesture) {
-        if (dx > 4 && dx >= dy) {
-          isScrubbingGesture = true;
-          isScrubbingRef.current = true;
-          setIsScrubbing(true);
-        } else if (dy > 8 && dy > dx) {
-          // Intentional vertical page scroll, cancel chart scrub
-          isTracking = false;
-          stopEdgeAutoScroll();
-          return;
+      // IF LONG PRESS IS NOT ACTIVE YET:
+      if (!isLongPressActiveRef.current) {
+        // If finger moves more than 7px before 500ms has elapsed:
+        if (dx > 7 || dy > 7) {
+          // It's a normal scroll/swipe! Cancel the long press timer!
+          if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+          // Do NOT preventDefault! Let native horizontal scroll of the chart take place!
         }
+        return;
       }
 
-      if (isScrubbingGesture) {
-        if (e.cancelable) {
-          e.preventDefault();
-        }
-        updateScrubPosition(touch.clientX);
+      // IF LONG PRESS IS ACTIVE (user held > 500ms and is now scrubbing):
+      // Prevent the page from scrolling vertically
+      if (e.cancelable) {
+        e.preventDefault();
       }
+      // Smoothly update HUD for each hour as finger moves
+      updateScrubPosition(touch.clientX);
     };
 
     const onTouchEnd = () => {
-      if (isTracking) {
-        if (dragDistanceRef.current > 4) {
-          justFinishedDraggingRef.current = true;
-          setTimeout(() => {
-            justFinishedDraggingRef.current = false;
-          }, 350);
-        }
+      // Cancel long press timer if lifted before 500ms
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+
+      if (isLongPressActiveRef.current) {
+        // Finger was scrubbing via long press:
+        justFinishedDraggingRef.current = true;
+        setTimeout(() => {
+          justFinishedDraggingRef.current = false;
+        }, 350);
+
+        isLongPressActiveRef.current = false;
         isScrubbingRef.current = false;
         setIsScrubbing(false);
         scheduleAutoDismiss(7000);
       }
-      isTracking = false;
-      isScrubbingGesture = false;
+
       currentPointerXRef.current = null;
       stopEdgeAutoScroll();
     };
@@ -322,6 +350,10 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
     el.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
     return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
       el.removeEventListener('touchstart', onTouchStart);
       el.removeEventListener('touchmove', onTouchMove);
       el.removeEventListener('touchend', onTouchEnd);
@@ -330,38 +362,66 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
     };
   }, [updateScrubPosition, startEdgeAutoScroll, stopEdgeAutoScroll, scheduleAutoDismiss]);
 
-  // Desktop mouse dragging support
+  // Desktop mouse dragging support with long-press or drag
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Only primary left mouse button
     if (e.button !== 0) return;
-    isScrubbingRef.current = true;
-    setIsScrubbing(true);
-    currentPointerXRef.current = e.clientX;
-    dragDistanceRef.current = 0;
-    updateScrubPosition(e.clientX);
-    startEdgeAutoScroll();
-
     const startX = e.clientX;
+    const startY = e.clientY;
+    dragDistanceRef.current = 0;
+    currentPointerXRef.current = startX;
+
+    let isMouseLongPressActive = false;
+
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    longPressTimerRef.current = setTimeout(() => {
+      isMouseLongPressActive = true;
+      isScrubbingRef.current = true;
+      setIsScrubbing(true);
+      updateScrubPosition(startX);
+      startEdgeAutoScroll();
+    }, 450);
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const dx = Math.abs(moveEvent.clientX - startX);
+      const dy = Math.abs(moveEvent.clientY - startY);
       dragDistanceRef.current = Math.max(dragDistanceRef.current, dx);
       currentPointerXRef.current = moveEvent.clientX;
+
+      if (!isMouseLongPressActive) {
+        if (dx > 8 || dy > 8) {
+          if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+        }
+        return;
+      }
+
       updateScrubPosition(moveEvent.clientX);
     };
 
     const onMouseUp = () => {
-      if (dragDistanceRef.current > 4) {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+
+      if (isMouseLongPressActive) {
         justFinishedDraggingRef.current = true;
         setTimeout(() => {
           justFinishedDraggingRef.current = false;
         }, 350);
+        isScrubbingRef.current = false;
+        setIsScrubbing(false);
+        scheduleAutoDismiss(7000);
       }
-      isScrubbingRef.current = false;
-      setIsScrubbing(false);
+
       currentPointerXRef.current = null;
       stopEdgeAutoScroll();
-      scheduleAutoDismiss(7000);
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
@@ -406,6 +466,7 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
   // Clean up timers on unmount
   useEffect(() => {
     return () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
       if (autoDismissTimerRef.current) clearTimeout(autoDismissTimerRef.current);
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
       if (autoScrollRafRef.current) cancelAnimationFrame(autoScrollRafRef.current);
