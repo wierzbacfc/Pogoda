@@ -237,50 +237,56 @@ export function HeroSection({
 
       {/* 2. Central Core: Grand Temperature & Weather Visual */}
       <div className="flex items-center justify-between my-0.5 px-0.5">
-        {/* Left: Huge Temp & Metrics */}
-        <div className="flex flex-col">
+        {/* Left: Huge Temp & Rebuilt Secondary Temperatures */}
+        <div className="flex flex-col justify-center">
           <div className="flex items-baseline">
             <span className="text-7xl font-extralight text-white tabular-nums tracking-tighter leading-none drop-shadow-md">
               {Math.round(currentTemp)}
             </span>
-            <span className="text-4xl font-light text-blue-400 ml-1">°</span>
+            <span className="text-4xl font-light text-cyan-400 ml-1">°</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 mt-3">
-            {/* Status & Feels Like Pill */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 border border-white/10 backdrop-blur-md shadow-sm">
-              <span className="text-xs font-bold text-zinc-100 capitalize tracking-tight drop-shadow-sm">{weatherInfo.label}</span>
-              <span className="w-1 h-1 rounded-full bg-zinc-400" />
-              <span className="text-[11px] text-zinc-300 font-medium">
-                Odcz. <strong className="text-white font-bold">{formatTemp(feelsLike)}</strong>
-              </span>
+          <div className="flex flex-col gap-1.5 mt-2.5">
+            {/* Feels Like Temperature */}
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-zinc-400 font-medium">Odczuwalna</span>
+              <span className="font-bold text-white tabular-nums">{formatTemp(feelsLike)}</span>
             </div>
 
-            {/* Min/Max Temp Pill */}
-            <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.05] border border-white/5 backdrop-blur-md shadow-sm">
-              <span className="text-orange-400 flex items-center text-[11px] font-bold">
-                <ArrowUp size={11} className="mr-0.5" />{Math.round(maxTemp)}°
-              </span>
-              <span className="text-blue-400 flex items-center text-[11px] font-bold">
-                <ArrowDown size={11} className="mr-0.5" />{Math.round(minTemp)}°
-              </span>
+            {/* Daily Min / Max Temp Badges */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-400/25 text-amber-300 text-[11px] font-bold tabular-nums shadow-xs">
+                <ArrowUp size={11} className="text-amber-400" />
+                <span>{Math.round(maxTemp)}°</span>
+              </div>
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-400/25 text-cyan-300 text-[11px] font-bold tabular-nums shadow-xs">
+                <ArrowDown size={11} className="text-cyan-400" />
+                <span>{Math.round(minTemp)}°</span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Right: Weather Icon floating naturally in background (large 120px 3D Fluent Volumetric) */}
-        <div className="flex-1 flex items-center justify-end pr-1 select-none">
-          <div className="relative flex items-center justify-center">
-            {/* Atmospheric ambient glow blooming directly behind 3D icon */}
-            <div className={`absolute inset-0 rounded-full blur-3xl -z-10 scale-125 pointer-events-none ${
-              isDay ? 'bg-amber-400/15' : 'bg-indigo-400/15'
-            }`} />
-            <WeatherIcon
-              code={weatherCode}
-              isDay={isDay}
-              size={120}
-              className="drop-shadow-[0_16px_32px_rgba(0,0,0,0.55)] transition-transform duration-300 hover:scale-105"
-            />
+        {/* Right: Weather Icon with Condition Description Placed Directly Below */}
+        <div className="flex-1 flex flex-col items-end justify-center pr-1 select-none">
+          <div className="flex flex-col items-center">
+            <div className="relative flex items-center justify-center">
+              {/* Atmospheric ambient glow blooming directly behind 3D icon */}
+              <div className={`absolute inset-0 rounded-full blur-2xl -z-10 scale-110 pointer-events-none ${
+                isDay ? 'bg-amber-400/15' : 'bg-indigo-400/15'
+              }`} />
+              <WeatherIcon
+                code={weatherCode}
+                isDay={isDay}
+                size={105}
+                className="drop-shadow-[0_12px_24px_rgba(0,0,0,0.55)] transition-transform duration-300 hover:scale-105"
+              />
+            </div>
+
+            {/* Weather condition label placed directly under icon */}
+            <span className="text-xs sm:text-sm font-bold text-zinc-100 capitalize tracking-tight text-center max-w-[140px] leading-snug drop-shadow-sm mt-1">
+              {weatherInfo.label}
+            </span>
           </div>
         </div>
       </div>
@@ -290,22 +296,19 @@ export function HeroSection({
         {/* Module 1: Wiatr z dużym kompasem */}
         <div
           onClick={() => setExpandedCard(prev => prev === 'wind' ? null : 'wind')}
-          className={`bg-white/[0.04] border rounded-2xl p-2.5 flex items-center gap-2.5 shadow-sm transition-all cursor-pointer active:scale-[0.98] ${
+          className={`bg-white/[0.04] border rounded-2xl px-2.5 py-2.5 flex items-center gap-2 shadow-sm transition-all cursor-pointer active:scale-[0.98] ${
             expandedCard === 'wind'
               ? 'border-blue-400/60 ring-1 ring-blue-400/40 bg-white/[0.08]'
               : 'border-white/10 hover:border-blue-400/30'
           }`}
         >
           {/* Duży wskaźnik kompasu */}
-          <div className="w-12 h-12 rounded-full bg-blue-500/15 border border-blue-400/30 flex flex-col items-center justify-center shrink-0 relative shadow-[0_0_10px_rgba(59,130,246,0.25)]">
+          <div className="w-11 h-11 rounded-full bg-blue-500/15 border border-blue-400/30 flex items-center justify-center shrink-0 relative shadow-[0_0_10px_rgba(59,130,246,0.25)]">
             <Navigation
-              size={17}
+              size={20}
               style={{ transform: `rotate(${windDir}deg)` }}
               className="fill-current text-blue-400 transition-transform duration-500"
             />
-            <span className="text-[9px] font-extrabold text-white tracking-wider mt-0.5">
-              {windDirDetails.short}
-            </span>
           </div>
 
           {/* Dane wiatru */}
@@ -329,7 +332,7 @@ export function HeroSection({
         {/* Module 2: Jakość Powietrza z okrągłym ringiem AQI */}
         <div
           onClick={() => setExpandedCard(prev => prev === 'aqi' ? null : 'aqi')}
-          className={`bg-white/[0.04] border rounded-2xl p-2.5 flex items-center gap-2.5 shadow-sm transition-all cursor-pointer active:scale-[0.98] ${
+          className={`bg-white/[0.04] border rounded-2xl px-2.5 py-2.5 flex items-center gap-2 shadow-sm transition-all cursor-pointer active:scale-[0.98] ${
             expandedCard === 'aqi'
               ? 'border-emerald-400/60 ring-1 ring-emerald-400/40 bg-white/[0.08]'
               : 'border-white/10 hover:border-emerald-400/30'
@@ -337,21 +340,21 @@ export function HeroSection({
         >
           {/* Pierścień AQI */}
           <div
-            className="w-12 h-12 rounded-full bg-emerald-500/15 border-2 flex flex-col items-center justify-center shrink-0 shadow-[0_0_10px_rgba(16,185,129,0.25)]"
-            style={{ borderColor: aqiStatus.color }}
+            className="w-11 h-11 rounded-full bg-white/[0.04] border-2 flex flex-col items-center justify-center shrink-0"
+            style={{
+              borderColor: aqiStatus.color,
+              boxShadow: `0 0 10px ${aqiStatus.color}35`,
+            }}
           >
             <span className="text-sm font-black text-white leading-none">
               {Math.round(aqiValue)}
             </span>
-            <span
-              className="text-[8px] font-bold leading-none mt-0.5"
-              style={{ color: aqiStatus.color }}
-            >
-              {aqiStatus.label}
+            <span className="text-[7px] font-bold text-zinc-400 uppercase tracking-wider mt-0.5">
+              AQI
             </span>
           </div>
 
-          {/* Dane pyłów i trendu */}
+          {/* Dane pyłów i opis słowny */}
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between">
               <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">Powietrze</span>
@@ -360,11 +363,14 @@ export function HeroSection({
                 className={`text-zinc-500 transition-transform duration-200 ${expandedCard === 'aqi' ? 'rotate-180 text-emerald-400' : ''}`}
               />
             </div>
-            <div className="text-[10px] text-zinc-300 font-medium whitespace-nowrap mt-0.5">
-              PM2.5: <strong className="text-white">{pm25}</strong> &bull; PM10: <strong className="text-white">{pm10}</strong>
+            <div
+              className="text-xs font-bold leading-tight mt-0.5"
+              style={{ color: aqiStatus.color }}
+            >
+              {aqiStatus.label}
             </div>
-            <div className={`text-[9px] font-bold truncate mt-0.5 ${aqiTrend.color}`}>
-              {aqiTrend.label} (12h)
+            <div className="text-[9px] text-zinc-400 truncate mt-0.5">
+              PM2.5: <strong className="text-zinc-200 font-semibold">{pm25}</strong> &bull; PM10: <strong className="text-zinc-200 font-semibold">{pm10}</strong>
             </div>
           </div>
         </div>

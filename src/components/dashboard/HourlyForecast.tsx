@@ -3,7 +3,7 @@
 import { HourlyData } from '@/lib/types';
 import { formatTemp, formatTime, getDateKeyFromHour } from '@/lib/utils';
 import { WeatherIcon } from '@/components/ui/WeatherIcon';
-import { Clock, CloudRain, Droplets } from 'lucide-react';
+import { Clock, Droplets } from 'lucide-react';
 import React, { useMemo } from 'react';
 
 interface HourlyForecastProps {
@@ -152,22 +152,6 @@ function getSvgSpline(points: { x: number; y: number }[]): string {
 
       {/* Hybrid Precipitation Chart: Permanently visible with smooth spline curve and mm bars */}
       <div className="pt-2 border-t border-white/5 animate-in fade-in duration-300">
-        <div className="flex items-center justify-between text-xs text-zinc-300 mb-2 px-1">
-          <div className="flex items-center gap-1.5 font-semibold text-cyan-300">
-            <CloudRain size={13} />
-            <span>Opady i prawdopodobieństwo</span>
-          </div>
-          {next12Precip.hasRain ? (
-            <span className="text-[10px] text-cyan-300 font-medium tabular-nums">
-              Maks. do {next12Precip.maxRain.toFixed(1)} mm/h
-            </span>
-          ) : (
-            <span className="text-[10px] text-emerald-400/90 font-medium flex items-center gap-1">
-              Brak opadów w najbliższych 12h ✨
-            </span>
-          )}
-        </div>
-
         {/* Chart Card */}
         <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-2 flex flex-col gap-1.5 relative overflow-hidden">
           {/* Main Visualizer Area (SVG + Overlayed Bars) */}

@@ -66,6 +66,7 @@ export function DailyForecast({ dailyData, hourlyData, currentIdx, dailyStartIdx
           const maxTemp = dailyData.temperature_2m_max[idx];
           const weatherCode = dailyData.weathercode[idx];
           const precipProb = dailyData.precipitation_probability_max?.[idx] || 0;
+          const precipSum = dailyData.precipitation_sum?.[idx] ?? 0;
           const isToday = i === 0;
           const isDayExpanded = expandedDayDate === dateStr;
 
@@ -86,13 +87,13 @@ export function DailyForecast({ dailyData, hourlyData, currentIdx, dailyStartIdx
                   isDayExpanded ? 'bg-white/[0.03]' : ''
                 }`}
               >
-                {/* Day label */}
+                {/* Day label (Tightened width to eliminate dead space before icon) */}
                 {(() => {
                   const isWeekend = isWeekendDay(dateStr);
                   const dayName = getDayLabel(dateStr, i, todayDateKey);
                   return (
                     <div
-                      className={`w-12 text-xs shrink-0 ${
+                      className={`w-9.5 text-xs shrink-0 ${
                         isToday
                           ? 'text-blue-400 font-bold'
                           : isWeekend
@@ -107,17 +108,92 @@ export function DailyForecast({ dailyData, hourlyData, currentIdx, dailyStartIdx
 
                 {/* Weather icon */}
                 <div className="w-6 flex justify-center shrink-0">
-                  <WeatherIcon code={weatherCode} isDay={true} size={20} />
+                  <WeatherIcon code={weatherCode} isDay={true} size={21} />
                 </div>
 
-                {/* Precipitation if any */}
-                <div className="w-9 shrink-0 text-left">
-                  {precipProb >= 15 ? (
-                    <span className="text-[10px] text-cyan-400 font-bold tabular-nums">
-                      {precipProb}%
-                    </span>
+                {/* Radar Droplet Gauge (Slightly enlarged, distinct droplet, Ring = %, Liquid = mm) */}
+                <div className="w-15 shrink-0 flex items-center gap-1.5 pl-0.5">
+                  {precipProb >= 15 || precipSum > 0 ? (
+                    <>
+                      {/* Circular Progress Ring + Centered Vivid Liquid Droplet */}
+                      <div className="relative w-5.5 h-5.5 flex items-center justify-center shrink-0">
+                        {/* Outer probability ring */}
+                        <svg className="w-5.5 h-5.5 -rotate-90" viewBox="0 0 36 36">
+                          <circle
+                            cx="18"
+                            cy="18"
+                            r="15.9155"
+                            fill="none"
+                            stroke="rgba(255,255,255,0.15)"
+                            strokeWidth="3"
+                          />
+                          <circle
+                            cx="18"
+                            cy="18"
+                            r="15.9155"
+                            fill="none"
+                            stroke={precipProb >= 60 ? '#22d3ee' : '#38bdf8'}
+                            strokeWidth="3.2"
+                            strokeDasharray={`${precipProb}, 100`}
+                            strokeLinecap="round"
+                            className="drop-shadow-[0_0_4px_rgba(34,211,238,0.85)] transition-all duration-300"
+                          />
+                        </svg>
+
+                        {/* Centered Vivid Liquid Droplet for precipitation mm */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <svg viewBox="0 0 16 22" className="w-3 h-3.5 overflow-visible">
+                            <defs>
+                              <clipPath id={`drop-clip-${idx}`}>
+                                <path d="M8 1.5 C8 1.5 2 9.5 2 14.5 A6 6 0 0 0 14 14.5 C14 9.5 8 1.5 8 1.5 Z" />
+                              </clipPath>
+                              <linearGradient id={`drop-grad-${idx}`} x1="0" y1="1" x2="0" y2="0">
+                                <stop offset="0%" stopColor={precipSum >= 8 ? '#e11d48' : '#0284c7'} />
+                                <stop offset="100%" stopColor={precipSum >= 8 ? '#fb7185' : '#38bdf8'} />
+                              </linearGradient>
+                            </defs>
+                            {/* Glass droplet contour */}
+                            <path
+                              d="M8 1.5 C8 1.5 2 9.5 2 14.5 A6 6 0 0 0 14 14.5 C14 9.5 8 1.5 8 1.5 Z"
+                              fill="rgba(255,255,255,0.12)"
+                              stroke={precipSum >= 5 ? 'rgba(56,189,248,0.85)' : 'rgba(255,255,255,0.4)'}
+                              strokeWidth="1.3"
+                            />
+                            {/* Vivid liquid fill level */}
+                            <g clipPath={`url(#drop-clip-${idx})`}>
+                              <rect
+                                x="0"
+                                y={22 - Math.max(3, Math.min(21, (Math.min(precipSum, 15) / 15) * 19 + 3))}
+                                width="16"
+                                height="22"
+                                fill={`url(#drop-grad-${idx})`}
+                                className="drop-shadow-[0_0_3px_rgba(56,189,248,0.9)]"
+                              />
+                            </g>
+                            {/* Specular glass reflection highlight */}
+                            <circle cx="5.5" cy="11.5" r="1" fill="#ffffff" opacity="0.85" />
+                          </svg>
+                        </div>
+                      </div>
+
+                      {/* Probability and Amount */}
+                      <div className="flex flex-col justify-center leading-none">
+                        <span className="text-[10px] text-cyan-300 font-extrabold tabular-nums leading-tight">
+                          {precipProb}%
+                        </span>
+                        {precipSum >= 0.05 ? (
+                          <span className="text-[8px] text-zinc-100 font-semibold tabular-nums leading-tight">
+                            {precipSum >= 10 ? Math.round(precipSum) : precipSum.toFixed(1)} mm
+                          </span>
+                        ) : (
+                          <span className="text-[7.5px] text-zinc-400 font-medium tabular-nums leading-tight">
+                            &lt;0.1 mm
+                          </span>
+                        )}
+                      </div>
+                    </>
                   ) : (
-                    <span className="text-[10px] text-zinc-600 font-medium">--</span>
+                    <div className="w-full text-center text-[10px] text-zinc-600 font-medium">--</div>
                   )}
                 </div>
 

@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import { HourlyData } from '@/lib/types';
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp, X, Droplets, Wind, Cloud, Gauge, Sun } from 'lucide-react';
 import { WeatherIcon } from '@/components/ui/WeatherIcon';
+import { getWeatherInfo } from '@/lib/weather-codes';
+import { getCloudCoverInfo, degreesToCardinal } from '@/lib/utils';
 
 interface DayDetailChartProps {
   dateStr: string;
@@ -82,15 +84,15 @@ function getSmoothTempColor(temp: number): string {
   return interpolateMultiStops(temp, TEMP_COLOR_STOPS);
 }
 
-// Wind speed color gradient
+// Dynamic, high-contrast wind speed color gradient (Beaufort-inspired)
 const WIND_COLOR_STOPS: ColorStop[] = [
-  { value: 0,  rgb: [156, 163, 175] }, // Muted gray
-  { value: 8,  rgb: [125, 180, 215] }, // Gentle slate
-  { value: 14, rgb: [56, 189, 248] },  // Sky blue
-  { value: 20, rgb: [45, 212, 191] },  // Fresh teal
-  { value: 28, rgb: [251, 191, 36] },  // Gold
-  { value: 38, rgb: [251, 146, 60] },  // Orange
-  { value: 50, rgb: [248, 113, 113] }, // Red
+  { value: 0,  rgb: [148, 163, 184] }, // Cisza: Muted slate
+  { value: 7,  rgb: [52, 211, 153] },  // Słaby: Fresh emerald green
+  { value: 13, rgb: [56, 189, 248] },  // Łagodny: Sky cyan
+  { value: 18, rgb: [250, 204, 21] },  // Umiarkowany: Bright yellow
+  { value: 24, rgb: [251, 146, 60] },  // Wyraźny: Warm amber / orange
+  { value: 32, rgb: [248, 113, 113] }, // Dość silny: Coral red
+  { value: 45, rgb: [192, 132, 252] }, // Silny / porywisty: Vivid purple
 ];
 
 function getSmoothWindColor(speed: number): string {
@@ -104,24 +106,6 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
   const colWidth = COL_WIDTH;
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll screen so the expanded chart is fully visible above bottom toolbar
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const bottomNavOffset = 90;
-        const targetBottom = window.innerHeight - bottomNavOffset;
-        if (rect.bottom > targetBottom) {
-          window.scrollBy({
-            top: rect.bottom - targetBottom + 20,
-            behavior: 'smooth',
-          });
-        }
-      }
-    }, 120);
-    return () => clearTimeout(timer);
-  }, []);
 
   // Extract hours matching the selected date
   const hours = useMemo(() => {
@@ -144,11 +128,307 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
           precipProb: hourlyData.precipitation_probability?.[i] ?? 0,
           windSpeed: Math.round(hourlyData.windspeed_10m?.[i] ?? 0),
           windDir: Math.round(hourlyData.winddirection_10m?.[i] ?? 0),
+          windGusts: Math.round(hourlyData.windgusts_10m?.[i] ?? hourlyData.windspeed_10m?.[i] ?? 0),
+          humidity: Math.round(hourlyData.relativehumidity_2m?.[i] ?? 0),
+          uvIndex: Math.round(hourlyData.uv_index?.[i] ?? 0),
+          pressure: Math.round(hourlyData.surface_pressure?.[i] ?? 1013),
         });
       }
     }
     return list;
   }, [hourlyData, dateStr]);
+
+  // Active touched/scrubbed hour state & lifecycle transitions
+  const [activeHourIdx, setActiveHourIdx] = useState<number | null>(null);
+  const [isScrubbing, setIsScrubbing] = useState<boolean>(false);
+  const [isClosing, setIsClosing] = useState<boolean>(false);
+
+  // Refs for tracking drag state and preventing race conditions
+  const isScrubbingRef = useRef<boolean>(false);
+  const isClosingRef = useRef<boolean>(false);
+  const autoDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const closeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoScrollRafRef = useRef<number | null>(null);
+  const currentPointerXRef = useRef<number | null>(null);
+  const justFinishedDraggingRef = useRef<boolean>(false);
+  const dragDistanceRef = useRef<number>(0);
+
+  const closeHud = useCallback(() => {
+    if (activeHourIdx === null || isClosingRef.current) return;
+    setIsClosing(true);
+    isClosingRef.current = true;
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      setActiveHourIdx(null);
+      setIsClosing(false);
+      isClosingRef.current = false;
+      closeTimerRef.current = null;
+    }, 200);
+  }, [activeHourIdx]);
+
+  const openOrUpdateHud = useCallback((idx: number) => {
+    if (autoDismissTimerRef.current) {
+      clearTimeout(autoDismissTimerRef.current);
+      autoDismissTimerRef.current = null;
+    }
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setIsClosing(false);
+    isClosingRef.current = false;
+    setActiveHourIdx(idx);
+  }, []);
+
+  const scheduleAutoDismiss = useCallback((delayMs: number = 7000) => {
+    if (autoDismissTimerRef.current) {
+      clearTimeout(autoDismissTimerRef.current);
+    }
+    autoDismissTimerRef.current = setTimeout(() => {
+      closeHud();
+    }, delayMs);
+  }, [closeHud]);
+
+  // Update scrub position based on touch/pointer X
+  const updateScrubPosition = useCallback((clientX: number) => {
+    if (!scrollContainerRef.current) return;
+    const rect = scrollContainerRef.current.getBoundingClientRect();
+    const relX = clientX - rect.left + scrollContainerRef.current.scrollLeft;
+    const idx = Math.max(0, Math.min(hours.length - 1, Math.floor(relX / colWidth)));
+    openOrUpdateHud(idx);
+  }, [colWidth, hours.length, openOrUpdateHud]);
+
+  // Continuous edge auto-scrolling when holding finger or mouse near the boundaries
+  const startEdgeAutoScroll = useCallback(() => {
+    if (autoScrollRafRef.current) return;
+
+    const loop = () => {
+      if (!scrollContainerRef.current || currentPointerXRef.current === null) {
+        autoScrollRafRef.current = null;
+        return;
+      }
+
+      const rect = scrollContainerRef.current.getBoundingClientRect();
+      const pointerX = currentPointerXRef.current;
+      const relViewportX = pointerX - rect.left;
+      const edgeThreshold = 45;
+      let speed = 0;
+
+      if (relViewportX < edgeThreshold && scrollContainerRef.current.scrollLeft > 0) {
+        const factor = Math.max(0, Math.min(1, (edgeThreshold - relViewportX) / edgeThreshold));
+        speed = -Math.max(2, Math.round(factor * 10));
+      } else if (relViewportX > rect.width - edgeThreshold) {
+        const maxScroll = scrollContainerRef.current.scrollWidth - scrollContainerRef.current.clientWidth;
+        if (scrollContainerRef.current.scrollLeft < maxScroll) {
+          const factor = Math.max(0, Math.min(1, (relViewportX - (rect.width - edgeThreshold)) / edgeThreshold));
+          speed = Math.max(2, Math.round(factor * 10));
+        }
+      }
+
+      if (speed !== 0) {
+        scrollContainerRef.current.scrollLeft += speed;
+        updateScrubPosition(pointerX);
+      }
+
+      autoScrollRafRef.current = requestAnimationFrame(loop);
+    };
+
+    autoScrollRafRef.current = requestAnimationFrame(loop);
+  }, [updateScrubPosition]);
+
+  const stopEdgeAutoScroll = useCallback(() => {
+    if (autoScrollRafRef.current) {
+      cancelAnimationFrame(autoScrollRafRef.current);
+      autoScrollRafRef.current = null;
+    }
+  }, []);
+
+  // Native touch gesture engine on scrollContainer:
+  // Distinguishes horizontal scrubbing vs vertical page scroll and prevents page jump
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isTracking = false;
+    let isScrubbingGesture = false;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+      isTracking = true;
+      isScrubbingGesture = false;
+      dragDistanceRef.current = 0;
+      currentPointerXRef.current = touch.clientX;
+
+      // Immediately highlight and open HUD for the touched hour
+      updateScrubPosition(touch.clientX);
+      startEdgeAutoScroll();
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isTracking || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const dx = Math.abs(touch.clientX - touchStartX);
+      const dy = Math.abs(touch.clientY - touchStartY);
+      dragDistanceRef.current = Math.max(dragDistanceRef.current, dx);
+      currentPointerXRef.current = touch.clientX;
+
+      if (!isScrubbingGesture) {
+        if (dx > 4 && dx >= dy) {
+          isScrubbingGesture = true;
+          isScrubbingRef.current = true;
+          setIsScrubbing(true);
+        } else if (dy > 8 && dy > dx) {
+          // Intentional vertical page scroll, cancel chart scrub
+          isTracking = false;
+          stopEdgeAutoScroll();
+          return;
+        }
+      }
+
+      if (isScrubbingGesture) {
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+        updateScrubPosition(touch.clientX);
+      }
+    };
+
+    const onTouchEnd = () => {
+      if (isTracking) {
+        if (dragDistanceRef.current > 4) {
+          justFinishedDraggingRef.current = true;
+          setTimeout(() => {
+            justFinishedDraggingRef.current = false;
+          }, 350);
+        }
+        isScrubbingRef.current = false;
+        setIsScrubbing(false);
+        scheduleAutoDismiss(7000);
+      }
+      isTracking = false;
+      isScrubbingGesture = false;
+      currentPointerXRef.current = null;
+      stopEdgeAutoScroll();
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    el.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+      stopEdgeAutoScroll();
+    };
+  }, [updateScrubPosition, startEdgeAutoScroll, stopEdgeAutoScroll, scheduleAutoDismiss]);
+
+  // Desktop mouse dragging support
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only primary left mouse button
+    if (e.button !== 0) return;
+    isScrubbingRef.current = true;
+    setIsScrubbing(true);
+    currentPointerXRef.current = e.clientX;
+    dragDistanceRef.current = 0;
+    updateScrubPosition(e.clientX);
+    startEdgeAutoScroll();
+
+    const startX = e.clientX;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const dx = Math.abs(moveEvent.clientX - startX);
+      dragDistanceRef.current = Math.max(dragDistanceRef.current, dx);
+      currentPointerXRef.current = moveEvent.clientX;
+      updateScrubPosition(moveEvent.clientX);
+    };
+
+    const onMouseUp = () => {
+      if (dragDistanceRef.current > 4) {
+        justFinishedDraggingRef.current = true;
+        setTimeout(() => {
+          justFinishedDraggingRef.current = false;
+        }, 350);
+      }
+      isScrubbingRef.current = false;
+      setIsScrubbing(false);
+      currentPointerXRef.current = null;
+      stopEdgeAutoScroll();
+      scheduleAutoDismiss(7000);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  // Coordinate-based dismiss when tapping strictly outside the chart card
+  useEffect(() => {
+    if (activeHourIdx === null) return;
+
+    const handlePointerDownOutside = (e: PointerEvent) => {
+      if (isScrubbingRef.current || justFinishedDraggingRef.current) return;
+
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        if (
+          e.clientX >= rect.left &&
+          e.clientX <= rect.right &&
+          e.clientY >= rect.top &&
+          e.clientY <= rect.bottom
+        ) {
+          // Inside container, ignore
+          return;
+        }
+      }
+
+      closeHud();
+    };
+
+    const timer = setTimeout(() => {
+      document.addEventListener('pointerdown', handlePointerDownOutside);
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('pointerdown', handlePointerDownOutside);
+    };
+  }, [activeHourIdx, closeHud]);
+
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      if (autoDismissTimerRef.current) clearTimeout(autoDismissTimerRef.current);
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+      if (autoScrollRafRef.current) cancelAnimationFrame(autoScrollRafRef.current);
+    };
+  }, []);
+
+  // Auto-scroll screen so the expanded chart is fully visible above bottom toolbar
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const bottomNavOffset = 90;
+        const targetBottom = window.innerHeight - bottomNavOffset;
+        if (rect.bottom > targetBottom) {
+          window.scrollBy({
+            top: rect.bottom - targetBottom + 20,
+            behavior: 'smooth',
+          });
+        }
+      }
+    }, 120);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Daily statistics for header
   const stats = useMemo(() => {
@@ -247,6 +527,7 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
   return (
     <div
       ref={containerRef}
+      data-no-swipe="true"
       className="my-1.5 -mx-2 sm:-mx-3 p-2 rounded-2xl bg-zinc-900/55 border border-white/10 backdrop-blur-2xl shadow-xl flex flex-col gap-1.5 overflow-hidden"
     >
       {/* Header: Title, Range & Clean Visual Legend */}
@@ -281,40 +562,190 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
         </div>
       </div>
 
-      {/* Unified Synchronized Horizontal Scroll Container */}
+      {/* Interactive Scrubber HUD: Detailed weather popup for touched hour */}
+      {activeHourIdx !== null && (() => {
+        const activeHour = hours[activeHourIdx];
+        if (!activeHour) return null;
+
+        const info = getWeatherInfo(activeHour.weathercode, activeHour.isDay);
+        const cloudInfo = getCloudCoverInfo(activeHour.cloudCover);
+        const hourTitle = isToday && activeHour.idx === currentIdx
+          ? 'Teraz'
+          : `${activeHour.hourNum.toString().padStart(2, '0')}:00`;
+
+        return (
+          <div
+            className={`mx-0.5 p-2 rounded-xl bg-zinc-950/85 border border-cyan-400/40 backdrop-blur-2xl shadow-[0_8px_25px_rgba(0,0,0,0.6)] flex flex-col gap-1.5 transition-all duration-200 ease-out select-none relative ${
+              isClosing
+                ? 'opacity-0 -translate-y-2 scale-[0.98] pointer-events-none'
+                : 'opacity-100 translate-y-0 scale-100 animate-in fade-in-0 slide-in-from-top-2'
+            }`}
+          >
+            {/* Top Command Bar: Hour badge, Weather condition & Temp, Close button */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex flex-col shrink-0 items-start">
+                  <span className="px-1.5 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-400/30 text-[10px] font-mono font-black text-cyan-300 uppercase tracking-wider">
+                    {hourTitle}
+                  </span>
+                  <span className="text-[7.5px] text-zinc-400 font-semibold uppercase tracking-wider pl-0.5 mt-0.5">
+                    {activeHour.isDay ? 'Dzień' : 'Noc'}
+                  </span>
+                </div>
+
+                <div className="w-px h-6 bg-white/10 shrink-0" />
+
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <WeatherIcon code={activeHour.weathercode} isDay={activeHour.isDay} size={24} glow={false} />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-bold text-white truncate leading-tight">
+                      {info.label}
+                    </span>
+                    <span className="text-[9.5px] text-zinc-300 tabular-nums leading-tight mt-0.5">
+                      <strong className="text-white font-bold">{activeHour.temp}°</strong>
+                      <span className="text-zinc-400 ml-1.5">odcz. {activeHour.apparentTemp}°</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeHud();
+                }}
+                className="w-6 h-6 rounded-full bg-white/10 border border-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center text-zinc-400 hover:text-white transition cursor-pointer shrink-0"
+                title="Zamknij podgląd"
+              >
+                <X size={12} strokeWidth={2.5} />
+              </button>
+            </div>
+
+            {/* Bottom Cockpit Metrics Grid: 4 micro-cards (Chmury, Opady, Wiatr, Warunki) */}
+            <div className="grid grid-cols-4 gap-1 pt-1.5 border-t border-white/10">
+              {/* 1. Zachmurzenie */}
+              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
+                <div className="flex items-center gap-1 text-slate-300">
+                  <Cloud size={10} className="text-slate-300 shrink-0" />
+                  <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 truncate">Chmury</span>
+                </div>
+                <span className="text-xs font-black text-white tabular-nums my-0.5">
+                  {activeHour.cloudCover}%
+                </span>
+                <span className="text-[7.5px] text-slate-300/90 font-medium truncate leading-none">
+                  {cloudInfo.label}
+                </span>
+              </div>
+
+              {/* 2. Opady */}
+              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
+                <div className="flex items-center gap-1 text-cyan-400">
+                  <Droplets size={10} className="text-cyan-400 shrink-0" />
+                  <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 truncate">Opady</span>
+                </div>
+                <span className="text-xs font-black text-cyan-300 tabular-nums my-0.5">
+                  {activeHour.precipAmount > 0 ? `${activeHour.precipAmount.toFixed(1)} mm` : '0.0 mm'}
+                </span>
+                <span className="text-[7.5px] text-cyan-300/90 font-medium truncate leading-none tabular-nums">
+                  {activeHour.precipProb}% szans
+                </span>
+              </div>
+
+              {/* 3. Wiatr i porywy */}
+              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
+                <div className="flex items-center gap-1 text-emerald-400">
+                  <Wind size={10} className="text-emerald-400 shrink-0" />
+                  <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 truncate">Wiatr</span>
+                </div>
+                <div className="flex items-center gap-0.5 my-0.5 leading-none">
+                  <ArrowUp
+                    size={8}
+                    style={{ transform: `rotate(${activeHour.windDir + 180}deg)` }}
+                    className="text-emerald-400 shrink-0"
+                    strokeWidth={3}
+                  />
+                  <span className="text-xs font-black text-emerald-300 tabular-nums truncate">
+                    {activeHour.windSpeed} <span className="text-[7.5px] font-normal text-zinc-400">km/h</span>
+                  </span>
+                </div>
+                <span className="text-[7.5px] text-emerald-400/90 font-medium truncate leading-none tabular-nums">
+                  por. {activeHour.windGusts} km/h
+                </span>
+              </div>
+
+              {/* 4. Warunki / Wilgotność / Ciśnienie */}
+              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
+                <div className="flex items-center gap-1 text-amber-400">
+                  <Gauge size={10} className="text-amber-400 shrink-0" />
+                  <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 truncate">Warunki</span>
+                </div>
+                <span className="text-xs font-black text-zinc-100 tabular-nums my-0.5">
+                  {activeHour.humidity}% <span className="text-[7.5px] font-normal text-zinc-400">wilg.</span>
+                </span>
+                <span className="text-[7.5px] text-zinc-300/90 font-medium truncate leading-none tabular-nums">
+                  {activeHour.pressure} hPa{activeHour.uvIndex > 0 ? ` · UV ${activeHour.uvIndex}` : ''}
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Unified Synchronized Horizontal Scroll Container with Touch Drag Scrubber */}
       <div
         ref={scrollContainerRef}
         data-no-swipe="true"
-        className="overflow-x-auto [&::-webkit-scrollbar]{display:none} relative py-0.5 select-none"
+        onMouseDown={handleMouseDown}
+        className="overflow-x-auto [&::-webkit-scrollbar]{display:none} relative py-0.5 select-none cursor-ew-resize touch-pan-x"
       >
         <div style={{ width: `${chartWidth}px` }} className="relative flex flex-col gap-1">
           
           {/* ================= 1. ROW OF HOURS ================= */}
           <div className="grid" style={{ gridTemplateColumns: `repeat(${hours.length}, ${colWidth}px)` }}>
-            {hours.map((h) => {
+            {hours.map((h, idx) => {
               const isCurrent = isToday && h.idx === currentIdx;
+              const isScrubActive = activeHourIdx === idx;
+              const isEvenHour = h.hourNum % 2 === 0;
+              const shouldShowLabel = isCurrent || isScrubActive || isEvenHour;
+
               return (
                 <div
                   key={h.idx}
-                  className={`flex flex-col items-center justify-center py-0.5 rounded-md transition-all ${
-                    isCurrent
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (justFinishedDraggingRef.current) return;
+                    openOrUpdateHud(idx);
+                    scheduleAutoDismiss(7000);
+                  }}
+                  className={`flex flex-col items-center justify-center py-0.5 rounded-md transition-all cursor-pointer ${
+                    isScrubActive
+                      ? 'bg-cyan-500/40 border border-cyan-300 text-cyan-100 shadow-[0_0_10px_rgba(34,211,238,0.7)] scale-105 z-10'
+                      : isCurrent
                       ? 'bg-blue-500/30 border border-blue-400/50 shadow-[0_0_8px_rgba(59,130,246,0.35)]'
                       : h.isDay
-                      ? 'bg-white/[0.03]'
-                      : 'bg-zinc-950/40 border-b border-white/[0.04]'
+                      ? 'bg-white/[0.03] hover:bg-white/[0.08]'
+                      : 'bg-zinc-950/40 border-b border-white/[0.04] hover:bg-zinc-900/50'
                   }`}
                 >
-                  <span
-                    className={`text-[9px] tabular-nums font-mono leading-tight ${
-                      isCurrent
-                        ? 'text-blue-200 font-bold'
-                        : h.isDay
-                        ? 'text-zinc-200 font-medium'
-                        : 'text-zinc-400 font-normal'
-                    }`}
-                  >
-                    {isCurrent ? 'Teraz' : h.timeLabel}
-                  </span>
+                  {shouldShowLabel ? (
+                    <span
+                      className={`text-[9px] tabular-nums font-mono leading-tight ${
+                        isScrubActive
+                          ? 'text-cyan-100 font-black'
+                          : isCurrent
+                          ? 'text-blue-200 font-bold'
+                          : h.isDay
+                          ? 'text-zinc-200 font-semibold'
+                          : 'text-zinc-400 font-medium'
+                      }`}
+                    >
+                      {isCurrent ? 'Teraz' : h.hourNum.toString().padStart(2, '0')}
+                    </span>
+                  ) : (
+                    <span className="text-[9px] text-zinc-600 font-bold leading-tight select-none">
+                      ·
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -416,6 +847,23 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
                   );
                 })()}
 
+                {/* Guide line & Active Touch Scrubber for Touched Hour */}
+                {activeHourIdx !== null && (() => {
+                  const scrubX = activeHourIdx * colWidth + colWidth / 2;
+                  return (
+                    <line
+                      x1={scrubX}
+                      y1={0}
+                      x2={scrubX}
+                      y2={tempSvgHeight}
+                      stroke="#22d3ee"
+                      strokeWidth="1.6"
+                      strokeDasharray="3 2"
+                      className="drop-shadow-[0_0_6px_rgba(34,211,238,0.9)]"
+                    />
+                  );
+                })()}
+
                 {/* 1. CLOUD CEILING LAYER (SCHODZI OD GÓRY W DÓŁ PROPORCJONALNIE DO %) */}
                 <path d={cloudCeilingAreaD} fill={`url(#cloudCeilingGrad-${dateStr})`} />
                 <path
@@ -439,11 +887,12 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
                   className="drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
                 />
 
-                {/* 3. TEMPERATURE NODES & DEGREE LABELS */}
+                {/* 3. TEMPERATURE NODES & DEGREE LABELS (FOR EVERY HOUR) */}
                 {tempPoints.map((p, idx) => {
                   const isCurrent = isToday && hours[idx].idx === currentIdx;
                   const isPeak = idx === maxTempIdx;
                   const isLow = idx === minTempIdx && stats.maxTemp !== stats.minTemp;
+                  const isScrubActive = activeHourIdx === idx;
                   const tColor = getSmoothTempColor(hours[idx].temp);
 
                   return (
@@ -454,11 +903,31 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
                       {(isPeak || isLow) && (
                         <circle cx={p.x} cy={p.y} r="3.8" fill="none" stroke={tColor} strokeWidth="1" opacity="0.8" />
                       )}
+                      {/* Active Scrubber Target Ring */}
+                      {isScrubActive && (
+                        <g>
+                          <circle
+                            cx={p.x}
+                            cy={p.y}
+                            r="7.5"
+                            fill="none"
+                            stroke="#22d3ee"
+                            strokeWidth="2"
+                            className="drop-shadow-[0_0_8px_rgba(34,211,238,1)] animate-pulse"
+                          />
+                          <circle
+                            cx={p.x}
+                            cy={p.y}
+                            r="3.5"
+                            fill="#a5f3fc"
+                          />
+                        </g>
+                      )}
                       <circle
                         cx={p.x}
                         cy={p.y}
-                        r={isPeak || isCurrent ? "2.5" : "2"}
-                        fill={tColor}
+                        r={isPeak || isCurrent || isScrubActive ? "2.5" : "2"}
+                        fill={isScrubActive ? "#22d3ee" : tColor}
                         stroke="#09090b"
                         strokeWidth="1"
                       />
@@ -466,8 +935,8 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
                         x={p.x}
                         y={p.y - 5.5}
                         fill="#ffffff"
-                        fontSize="9"
-                        fontWeight={isPeak || isCurrent ? "bold" : "600"}
+                        fontSize="8.5"
+                        fontWeight={isPeak || isCurrent || isScrubActive ? "bold" : "600"}
                         textAnchor="middle"
                         className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
                       >
@@ -534,34 +1003,63 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
               })}
             </div>
 
-            {/* Compact Wind Speed & Direction Row */}
+            {/* Visual Dynamic Wind Speed & Direction Row */}
             <div
-              className="grid py-0.5 border-t border-white/5 items-center"
+              className="grid py-1 border-t border-white/5 items-center"
               style={{ gridTemplateColumns: `repeat(${hours.length}, ${colWidth}px)` }}
             >
-              {hours.map((h) => {
+              {hours.map((h, idx) => {
+                const isScrubActive = activeHourIdx === idx;
                 const windColor = getSmoothWindColor(h.windSpeed);
+                const speedBarPercent = Math.min(100, Math.max(15, (h.windSpeed / 35) * 100));
+
                 return (
                   <div
                     key={h.idx}
-                    className="flex items-center justify-center gap-0.5 py-0.5 px-0.5"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (justFinishedDraggingRef.current) return;
+                      openOrUpdateHud(idx);
+                      scheduleAutoDismiss(7000);
+                    }}
+                    className={`flex flex-col items-center justify-center gap-0.5 py-1 px-0.5 rounded-lg transition-all cursor-pointer ${
+                      isScrubActive ? 'ring-1.5 ring-cyan-400 bg-cyan-500/25 shadow-[0_0_8px_rgba(34,211,238,0.5)]' : 'hover:bg-white/10'
+                    }`}
+                    style={{
+                      backgroundColor: isScrubActive ? undefined : `${windColor}14`,
+                    }}
                     title={`Wiatr: ${h.windSpeed} km/h, kierunek: ${h.windDir}°`}
                   >
-                    <ArrowUp
-                      size={6.5}
-                      style={{
-                        transform: `rotate(${h.windDir + 180}deg)`,
-                        color: windColor,
-                      }}
-                      className="shrink-0 transition-transform"
-                      strokeWidth={2.5}
-                    />
-                    <span
-                      style={{ color: windColor }}
-                      className="text-[7.5px] font-mono tabular-nums font-semibold leading-none"
-                    >
-                      {h.windSpeed}
-                    </span>
+                    {/* Direction arrow + Speed with dynamic color */}
+                    <div className="flex items-center gap-0.5">
+                      <ArrowUp
+                        size={8}
+                        style={{
+                          transform: `rotate(${h.windDir + 180}deg)`,
+                          color: windColor,
+                        }}
+                        className="shrink-0 transition-transform"
+                        strokeWidth={3}
+                      />
+                      <span
+                        style={{ color: windColor }}
+                        className="text-[8.5px] font-mono tabular-nums font-extrabold leading-none"
+                      >
+                        {h.windSpeed}
+                      </span>
+                    </div>
+
+                    {/* Visual speed intensity bar */}
+                    <div className="w-4 h-1 bg-white/10 rounded-full overflow-hidden relative">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${speedBarPercent}%`,
+                          backgroundColor: windColor,
+                          boxShadow: `0 0 4px ${windColor}90`,
+                        }}
+                      />
+                    </div>
                   </div>
                 );
               })}
