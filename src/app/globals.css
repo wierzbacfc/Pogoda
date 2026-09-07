@@ -281,14 +281,43 @@ div[data-next-dev-tools] {
 }
 
 /* Mobile GPU performance optimization:
-   On mobile screens (max-width: 768px, e.g. Xiaomi 11), clamp heavy backdrop-blur (24-40px)
-   down to hardware-efficient 12px blur. This prevents GPU framebuffer fill-rate saturation
-   and delivers native 120 FPS swiping while retaining rich glass aesthetics. */
+   1. On mobile screens (max-width: 768px, e.g. Xiaomi 11), clamp heavy backdrop-blur (24-40px)
+      down to hardware-efficient 8px/6px blur. This prevents GPU framebuffer fill-rate saturation
+      on high-density (2.75x) 120Hz TBDR GPUs while retaining rich glass aesthetics.
+   2. During active city swipe gesture and gliding transition (.is-swiping),
+      temporarily disable backdrop-filter so the GPU can perform instant
+      120 FPS hardware texture panning with zero Gaussian blur shader passes. */
 @media (max-width: 768px) {
-  .backdrop-blur-2xl,
+  .backdrop-blur-2xl {
+    -webkit-backdrop-filter: blur(8px) !important;
+    backdrop-filter: blur(8px) !important;
+  }
   .backdrop-blur-xl {
-    -webkit-backdrop-filter: blur(12px) !important;
-    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+    backdrop-filter: blur(6px) !important;
+  }
+
+  .is-swiping *,
+  .is-swiping [class*="backdrop-blur"],
+  .is-swiping .backdrop-blur-2xl,
+  .is-swiping .backdrop-blur-xl,
+  .is-swiping .backdrop-blur-md {
+    --tw-backdrop-blur: none !important;
+    --tw-backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
 }
+
+.is-swiping *,
+.is-swiping [class*="backdrop-blur"],
+.is-swiping .backdrop-blur-2xl,
+.is-swiping .backdrop-blur-xl,
+.is-swiping .backdrop-blur-md {
+  --tw-backdrop-blur: none !important;
+  --tw-backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
 

@@ -16,6 +16,8 @@ import { CitySlide } from '@/components/dashboard/CitySlide';
 
 import CitiesSheet from '@/components/cities/CitiesSheet';
 import SettingsModal from '@/components/settings/SettingsModal';
+import { LandscapeChart } from '@/components/dashboard/LandscapeChart';
+import { useLandscape } from '@/hooks/useLandscape';
 import { RefreshCw } from 'lucide-react';
 
 const GPS_CITY: City = {
@@ -56,6 +58,13 @@ export default function WeatherApp() {
   const [citiesSheetOpen, setCitiesSheetOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const { toasts, showToast, dismissToast } = useToast();
+  
+  const isLandscape = useLandscape();
+  const [hideLandscapeChart, setHideLandscapeChart] = useState(false);
+
+  useEffect(() => {
+    if (!isLandscape) setHideLandscapeChart(false);
+  }, [isLandscape]);
 
   const mainRef = useRef<HTMLElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -66,10 +75,15 @@ export default function WeatherApp() {
   const isHorizontalGestureRef = useRef<boolean | null>(null);
   const swipeStartPosRef = useRef<{ x: number; y: number; time: number }>({ x: 0, y: 0, time: 0 });
   const dragStartRef = useRef<{ x: number; y: number; time: number; target: EventTarget | null }>({ x: 0, y: 0, time: 0, target: null });
+  const activeCityIndexRef = useRef<number>(activeCityIndex);
+  const containerWidthRef = useRef<number>(392);
+  const rafIdRef = useRef<number | null>(null);
 
   // Synchronize track position when activeCityIndex changes
   useEffect(() => {
+    activeCityIndexRef.current = activeCityIndex;
     if (trackRef.current && !isSwipingRef.current) {
+      trackRef.current.style.transition = 'none';
       trackRef.current.style.transform = `translate3d(${-activeCityIndex * 100}%, 0, 0)`;
     }
   }, [activeCityIndex]);
@@ -145,7 +159,7 @@ export default function WeatherApp() {
     refreshAll();
   }, [refreshAll]);
 
-  // Swipe & Touch Gesture Engine with interactive horizontal tracking (Direct DOM)
+  // Swipe & Touch Gesture Engine with interactive horizontal tracking (Direct DOM + 120 FPS RAF)
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length !== 1) return;
     const touch = e.touches[0];
@@ -154,6 +168,10 @@ export default function WeatherApp() {
     isHorizontalGestureRef.current = null;
     swipeOffsetRef.current = 0;
     isSwipingRef.current = false;
+
+    if (mainRef.current) {
+      containerWidthRef.current = mainRef.current.clientWidth || window.innerWidth || 392;
+    }
 
     if (typeof window !== 'undefined' && window.scrollY <= 2) {
       pullStartRef.current = { y: touch.clientY, active: true };
@@ -173,21 +191,22 @@ export default function WeatherApp() {
     const target = dragStartRef.current.target as HTMLElement | null;
     const isNoSwipe = !!(target && target.closest('[data-no-swipe="true"]'));
 
-    // Determine gesture intent once moved past 8px
-    if (isHorizontalGestureRef.current === null && (absX > 8 || absY > 8)) {
-      if (absX > absY * 1.15 && !isNoSwipe && cities.length > 1) {
+    // Determine gesture intent once moved past 6px
+    if (isHorizontalGestureRef.current === null && (absX > 6 || absY > 6)) {
+      if (absX > absY && !isNoSwipe && cities.length > 1) {
         isHorizontalGestureRef.current = true;
         isSwipingRef.current = true;
         pullStartRef.current.active = false;
         if (trackRef.current) {
-          trackRef.current.classList.add('pointer-events-none');
+          trackRef.current.style.transition = 'none';
+          trackRef.current.classList.add('pointer-events-none', 'is-swiping');
         }
       } else {
         isHorizontalGestureRef.current = false;
       }
     }
 
-    // 1. Horizontal City Swipe Mode (Direct DOM manipulation - zero React re-renders)
+    // 1. Horizontal City Swipe Mode (Direct DOM + 120 FPS RAF with Pixel Precision)
     if (isHorizontalGestureRef.current === true) {
       if (e.cancelable) {
         try {
@@ -195,20 +214,26 @@ export default function WeatherApp() {
         } catch (_) {}
       }
 
+      const curIdx = activeCityIndexRef.current;
       // Elastic rubber-band resistance when dragging beyond list boundaries
       let offset = dx;
-      if (activeCityIndex === 0 && dx > 0) {
-        offset = dx * 0.25;
-      } else if (activeCityIndex === cities.length - 1 && dx < 0) {
-        offset = dx * 0.25;
+      if (curIdx === 0 && dx > 0) {
+        offset = dx * 0.28;
+      } else if (curIdx === cities.length - 1 && dx < 0) {
+        offset = dx * 0.28;
       }
 
       swipeOffsetRef.current = offset;
 
-      // Direct GPU transform update on DOM node
-      if (trackRef.current) {
-        trackRef.current.style.transition = 'none';
-        trackRef.current.style.transform = `translate3d(calc(${-activeCityIndex * 100}% + ${offset}px), 0, 0)`;
+      if (rafIdRef.current === null) {
+        rafIdRef.current = requestAnimationFrame(() => {
+          if (trackRef.current) {
+            const width = containerWidthRef.current;
+            const currentX = -curIdx * width + swipeOffsetRef.current;
+            trackRef.current.style.transform = `translate3d(${currentX}px, 0, 0)`;
+          }
+          rafIdRef.current = null;
+        });
       }
       return;
     }
@@ -226,59 +251,81 @@ export default function WeatherApp() {
   };
 
   const handleTouchEnd = async () => {
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+
     const finalOffset = swipeOffsetRef.current;
     const elapsed = Math.max(1, Date.now() - swipeStartPosRef.current.time);
     const velocity = Math.abs(finalOffset) / elapsed;
+    const width = containerWidthRef.current;
+    const curIdx = activeCityIndexRef.current;
 
     if (isSwipingRef.current) {
       isSwipingRef.current = false;
-      if (trackRef.current) {
-        trackRef.current.classList.remove('pointer-events-none');
-      }
 
-      const swipeThreshold = 40;
-      const isFlick = velocity > 0.28 && Math.abs(finalOffset) > 20;
+      const swipeThreshold = Math.min(50, width * 0.15);
+      const isFlick = velocity > 0.25 && Math.abs(finalOffset) > 20;
 
-      if ((finalOffset < -swipeThreshold || (finalOffset < 0 && isFlick)) && activeCityIndex < cities.length - 1) {
+      if ((finalOffset < -swipeThreshold || (finalOffset < 0 && isFlick)) && curIdx < cities.length - 1) {
         // Swiped Left -> Advance to next city
-        const nextIdx = activeCityIndex + 1;
+        const nextIdx = curIdx + 1;
         if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          try { navigator.vibrate(12); } catch (_) {}
+          try { navigator.vibrate(10); } catch (_) {}
         }
         if (trackRef.current) {
-          trackRef.current.style.transition = 'transform 320ms cubic-bezier(0.25, 1, 0.5, 1)';
-          trackRef.current.style.transform = `translate3d(${-nextIdx * 100}%, 0, 0)`;
+          trackRef.current.style.transition = 'transform 300ms cubic-bezier(0.2, 0.9, 0.3, 1)';
+          trackRef.current.style.transform = `translate3d(${-nextIdx * width}px, 0, 0)`;
         }
         swipeOffsetRef.current = 0;
-        setActiveCityIndex(nextIdx);
-        if (typeof window !== 'undefined' && window.scrollY > 40) {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+
+        // Keep .is-swiping and pointer-events-none during the 300ms glide so GPU doesn't stutter!
+        setTimeout(() => {
+          if (trackRef.current) {
+            trackRef.current.classList.remove('pointer-events-none', 'is-swiping');
+          }
+          setActiveCityIndex(nextIdx);
+          if (typeof window !== 'undefined' && window.scrollY > 40) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }, 280);
         return;
-      } else if ((finalOffset > swipeThreshold || (finalOffset > 0 && isFlick)) && activeCityIndex > 0) {
+      } else if ((finalOffset > swipeThreshold || (finalOffset > 0 && isFlick)) && curIdx > 0) {
         // Swiped Right -> Go to previous city
-        const prevIdx = activeCityIndex - 1;
+        const prevIdx = curIdx - 1;
         if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          try { navigator.vibrate(12); } catch (_) {}
+          try { navigator.vibrate(10); } catch (_) {}
         }
         if (trackRef.current) {
-          trackRef.current.style.transition = 'transform 320ms cubic-bezier(0.25, 1, 0.5, 1)';
-          trackRef.current.style.transform = `translate3d(${-prevIdx * 100}%, 0, 0)`;
+          trackRef.current.style.transition = 'transform 300ms cubic-bezier(0.2, 0.9, 0.3, 1)';
+          trackRef.current.style.transform = `translate3d(${-prevIdx * width}px, 0, 0)`;
         }
         swipeOffsetRef.current = 0;
-        setActiveCityIndex(prevIdx);
-        if (typeof window !== 'undefined' && window.scrollY > 40) {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+
+        setTimeout(() => {
+          if (trackRef.current) {
+            trackRef.current.classList.remove('pointer-events-none', 'is-swiping');
+          }
+          setActiveCityIndex(prevIdx);
+          if (typeof window !== 'undefined' && window.scrollY > 40) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }, 280);
         return;
       }
 
       // Spring back smoothly if threshold wasn't reached or boundary bounce
       if (trackRef.current) {
-        trackRef.current.style.transition = 'transform 260ms cubic-bezier(0.25, 1, 0.5, 1)';
-        trackRef.current.style.transform = `translate3d(${-activeCityIndex * 100}%, 0, 0)`;
+        trackRef.current.style.transition = 'transform 240ms cubic-bezier(0.25, 1, 0.5, 1)';
+        trackRef.current.style.transform = `translate3d(${-curIdx * width}px, 0, 0)`;
       }
       swipeOffsetRef.current = 0;
+      setTimeout(() => {
+        if (trackRef.current) {
+          trackRef.current.classList.remove('pointer-events-none', 'is-swiping');
+        }
+      }, 240);
       return;
     }
 
@@ -317,17 +364,24 @@ export default function WeatherApp() {
     let isHorizontal: boolean | null = null;
     let swiping = false;
 
+    if (mainRef.current) {
+      containerWidthRef.current = mainRef.current.clientWidth || window.innerWidth || 392;
+    }
+    const width = containerWidthRef.current;
+    const curIdx = activeCityIndexRef.current;
+
     const onPointerMove = (ev: PointerEvent) => {
       const dx = ev.clientX - startX;
       const dy = ev.clientY - startY;
 
-      if (isHorizontal === null && (Math.abs(dx) > 7 || Math.abs(dy) > 7)) {
-        if (Math.abs(dx) > Math.abs(dy) * 1.15 && cities.length > 1) {
+      if (isHorizontal === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+        if (Math.abs(dx) > Math.abs(dy) && cities.length > 1) {
           isHorizontal = true;
           swiping = true;
           isSwipingRef.current = true;
           if (trackRef.current) {
-            trackRef.current.classList.add('pointer-events-none');
+            trackRef.current.style.transition = 'none';
+            trackRef.current.classList.add('pointer-events-none', 'is-swiping');
           }
         } else {
           isHorizontal = false;
@@ -336,13 +390,18 @@ export default function WeatherApp() {
 
       if (isHorizontal) {
         let offset = dx;
-        if (activeCityIndex === 0 && dx > 0) offset = dx * 0.28;
-        else if (activeCityIndex === cities.length - 1 && dx < 0) offset = dx * 0.28;
+        if (curIdx === 0 && dx > 0) offset = dx * 0.28;
+        else if (curIdx === cities.length - 1 && dx < 0) offset = dx * 0.28;
         swipeOffsetRef.current = offset;
 
-        if (trackRef.current) {
-          trackRef.current.style.transition = 'none';
-          trackRef.current.style.transform = `translate3d(calc(${-activeCityIndex * 100}% + ${offset}px), 0, 0)`;
+        if (rafIdRef.current === null) {
+          rafIdRef.current = requestAnimationFrame(() => {
+            if (trackRef.current) {
+              const currentX = -curIdx * width + swipeOffsetRef.current;
+              trackRef.current.style.transform = `translate3d(${currentX}px, 0, 0)`;
+            }
+            rafIdRef.current = null;
+          });
         }
       }
     };
@@ -351,44 +410,61 @@ export default function WeatherApp() {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
 
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+
       if (swiping) {
         isSwipingRef.current = false;
-        if (trackRef.current) {
-          trackRef.current.classList.remove('pointer-events-none');
-        }
         const finalOffset = swipeOffsetRef.current;
         const elapsed = Math.max(1, Date.now() - startTime);
         const velocity = Math.abs(finalOffset) / elapsed;
-        const isFlick = velocity > 0.28 && Math.abs(finalOffset) > 20;
+        const isFlick = velocity > 0.25 && Math.abs(finalOffset) > 20;
 
-        if ((finalOffset < -40 || (finalOffset < 0 && isFlick)) && activeCityIndex < cities.length - 1) {
-          const nextIdx = activeCityIndex + 1;
+        if ((finalOffset < -40 || (finalOffset < 0 && isFlick)) && curIdx < cities.length - 1) {
+          const nextIdx = curIdx + 1;
           if (trackRef.current) {
-            trackRef.current.style.transition = 'transform 320ms cubic-bezier(0.25, 1, 0.5, 1)';
-            trackRef.current.style.transform = `translate3d(${-nextIdx * 100}%, 0, 0)`;
+            trackRef.current.style.transition = 'transform 300ms cubic-bezier(0.2, 0.9, 0.3, 1)';
+            trackRef.current.style.transform = `translate3d(${-nextIdx * width}px, 0, 0)`;
           }
           swipeOffsetRef.current = 0;
-          setActiveCityIndex(nextIdx);
-          if (typeof window !== 'undefined' && window.scrollY > 40) {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }
-        } else if ((finalOffset > 40 || (finalOffset > 0 && isFlick)) && activeCityIndex > 0) {
-          const prevIdx = activeCityIndex - 1;
+          setTimeout(() => {
+            if (trackRef.current) {
+              trackRef.current.classList.remove('pointer-events-none', 'is-swiping');
+            }
+            setActiveCityIndex(nextIdx);
+            if (typeof window !== 'undefined' && window.scrollY > 40) {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }, 280);
+        } else if ((finalOffset > 40 || (finalOffset > 0 && isFlick)) && curIdx > 0) {
+          const prevIdx = curIdx - 1;
           if (trackRef.current) {
-            trackRef.current.style.transition = 'transform 320ms cubic-bezier(0.25, 1, 0.5, 1)';
-            trackRef.current.style.transform = `translate3d(${-prevIdx * 100}%, 0, 0)`;
+            trackRef.current.style.transition = 'transform 300ms cubic-bezier(0.2, 0.9, 0.3, 1)';
+            trackRef.current.style.transform = `translate3d(${-prevIdx * width}px, 0, 0)`;
           }
           swipeOffsetRef.current = 0;
-          setActiveCityIndex(prevIdx);
-          if (typeof window !== 'undefined' && window.scrollY > 40) {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }
+          setTimeout(() => {
+            if (trackRef.current) {
+              trackRef.current.classList.remove('pointer-events-none', 'is-swiping');
+            }
+            setActiveCityIndex(prevIdx);
+            if (typeof window !== 'undefined' && window.scrollY > 40) {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }, 280);
         } else {
           if (trackRef.current) {
-            trackRef.current.style.transition = 'transform 260ms cubic-bezier(0.25, 1, 0.5, 1)';
-            trackRef.current.style.transform = `translate3d(${-activeCityIndex * 100}%, 0, 0)`;
+            trackRef.current.style.transition = 'transform 240ms cubic-bezier(0.25, 1, 0.5, 1)';
+            trackRef.current.style.transform = `translate3d(${-curIdx * width}px, 0, 0)`;
           }
           swipeOffsetRef.current = 0;
+          setTimeout(() => {
+            if (trackRef.current) {
+              trackRef.current.classList.remove('pointer-events-none', 'is-swiping');
+            }
+          }, 240);
         }
       }
     };
@@ -399,18 +475,25 @@ export default function WeatherApp() {
 
   // City selection & management
   const handleSelectCity = useCallback((index: number) => {
-    if (index !== activeCityIndex) {
+    if (index !== activeCityIndexRef.current) {
+      const width = mainRef.current?.clientWidth || window.innerWidth || 392;
       if (trackRef.current) {
-        trackRef.current.style.transition = 'transform 320ms cubic-bezier(0.25, 1, 0.5, 1)';
-        trackRef.current.style.transform = `translate3d(${-index * 100}%, 0, 0)`;
+        trackRef.current.classList.add('is-swiping');
+        trackRef.current.style.transition = 'transform 300ms cubic-bezier(0.2, 0.9, 0.3, 1)';
+        trackRef.current.style.transform = `translate3d(${-index * width}px, 0, 0)`;
       }
       swipeOffsetRef.current = 0;
-      setActiveCityIndex(index);
-      if (typeof window !== 'undefined' && window.scrollY > 40) {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
+      setTimeout(() => {
+        if (trackRef.current) {
+          trackRef.current.classList.remove('is-swiping');
+        }
+        setActiveCityIndex(index);
+        if (typeof window !== 'undefined' && window.scrollY > 40) {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }, 280);
     }
-  }, [activeCityIndex]);
+  }, []);
 
   const handleDeleteCity = useCallback((index: number) => {
     const cityToDelete = cities[index];
@@ -494,7 +577,7 @@ export default function WeatherApp() {
             className="flex w-full flex-nowrap items-start will-change-transform"
             style={{
               transform: `translate3d(${-activeCityIndex * 100}%, 0, 0)`,
-              transition: 'transform 320ms cubic-bezier(0.25, 1, 0.5, 1)',
+              transition: 'transform 300ms cubic-bezier(0.2, 0.9, 0.3, 1)',
             }}
           >
             {cities.map((city) => (
@@ -558,6 +641,15 @@ export default function WeatherApp() {
           onClearCache={() => refreshAll()}
           showToast={showToast}
         />
+
+        {/* Landscape Mode Chart */}
+        {isLandscape && !hideLandscapeChart && (
+          <LandscapeChart 
+            city={activeCity} 
+            weather={activeWeather} 
+            onClose={() => setHideLandscapeChart(true)} 
+          />
+        )}
       </div>
     </div>
   );

@@ -52,15 +52,7 @@ export const CitySlide = React.memo(function CitySlide({
   const hasWeather = !!(weather && weather.hourly && currentIdx >= 0);
 
   return (
-    <div
-      className="w-full min-w-full flex-shrink-0 px-3.5 pt-7 pb-4 flex flex-col gap-3.5 select-none"
-      style={{
-        contentVisibility: 'auto',
-        containIntrinsicSize: '1000px',
-        transform: 'translateZ(0)',
-        willChange: 'transform',
-      }}
-    >
+    <div className="w-full min-w-full flex-shrink-0 px-3.5 pt-7 pb-4 flex flex-col gap-3.5 select-none">
       {!hasWeather ? (
         weatherError && !weatherLoading ? (
           <div className="bg-zinc-900/60 backdrop-blur-xl border border-red-500/20 rounded-3xl p-6 text-center flex flex-col items-center gap-4 mt-12 shadow-2xl">
