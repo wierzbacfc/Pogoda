@@ -658,6 +658,14 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
   const lastX = tempPoints[tempPoints.length - 1]?.x ?? chartWidth;
   const tempAreaD = `${tempSplineD} L ${lastX.toFixed(1)} 104 L ${firstX.toFixed(1)} 104 Z`;
 
+  // Apparent Temperature curve & ambient background (no text values, background only)
+  const apparentPoints = hours.map((h, i) => ({
+    x: i * colWidth + colWidth / 2,
+    y: getTempY(h.apparentTemp),
+  }));
+  const apparentSplineD = getSvgSpline(apparentPoints);
+  const apparentAreaD = `${apparentSplineD} L ${lastX.toFixed(1)} 104 L ${firstX.toFixed(1)} 104 Z`;
+
   // Chart 2: Wind, Gusts & Cloud Cover (viewBox height: 100)
   // Cloud Cover: 0-100% -> y: 80 (0%) to 16 (100%)
   const getCloudY = (c: number) => {
@@ -737,7 +745,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
           <div
             ref={hudRef}
             className={`absolute top-2 z-50 p-2.5 rounded-2xl bg-zinc-950/95 border border-cyan-400/50 backdrop-blur-2xl shadow-[0_12px_36px_rgba(0,0,0,0.85)] flex flex-col gap-1.5 transition-all duration-200 ease-out select-none ${
-              hudAnchor === 'left' ? 'left-[115px] sm:left-[130px] right-auto' : 'right-3 left-auto'
+              hudAnchor === 'left' ? 'left-3 right-auto' : 'right-3 left-auto'
             } ${
               isClosing
                 ? 'opacity-0 translate-y-2 scale-[0.98] pointer-events-none'
@@ -854,202 +862,111 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
         );
       })()}
 
-      {/* Main Content Area: Sidebar + Scrollable Charts */}
-      <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
-        {/* Dedicated Left Sidebar (Fixed / Non-scrolling) */}
-        <div className="w-[105px] sm:w-[120px] shrink-0 border-r border-white/10 bg-zinc-950/90 backdrop-blur-2xl flex flex-col justify-between py-1.5 px-2 z-30 select-none shadow-2xl">
-          {/* Top: Aligned with Timeline (~22px) */}
-          <div className="h-[22px] shrink-0 flex items-center justify-between border-b border-white/10 pb-1">
-            <div className="flex items-center gap-1 min-w-0">
-              <span className="text-[11px] font-black text-white tracking-tight truncate">
-                {city.name}
-              </span>
-              {city.isGps && (
-                <span className="text-[7.5px] font-mono font-bold px-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 shrink-0">
-                  GPS
-                </span>
-              )}
-            </div>
-            <span className="text-[8px] font-mono font-bold px-1 py-0.5 rounded bg-white/10 text-cyan-300 border border-white/10 shrink-0">
-              7D
-            </span>
-          </div>
-
-          {/* Middle: Aligned with Chart 1 (Temperatura & Opady) */}
-          <div className="flex-1 min-h-0 flex flex-col justify-center py-1 border-b border-white/10">
-            <div className="flex items-center gap-1 text-[10px] font-bold text-amber-300 mb-1">
-              <Thermometer size={12} className="shrink-0" />
-              <span className="truncate">Temperatura</span>
-            </div>
-            <div className="flex flex-col gap-0.5 text-[9px]">
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Maks:</span>
-                <span className="font-bold text-amber-300 font-mono">{stats.maxTemp}°C</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Min:</span>
-                <span className="font-bold text-cyan-300 font-mono">{stats.minTemp}°C</span>
-              </div>
-              {stats.totalRain > 0 ? (
-                <div className="flex items-center justify-between text-cyan-300 mt-1 pt-1 border-t border-white/5">
-                  <div className="flex items-center gap-0.5 text-zinc-400">
-                    <Droplets size={9} className="text-cyan-400 shrink-0" />
-                    <span className="text-[8px]">Opad:</span>
-                  </div>
-                  <span className="font-bold font-mono">{stats.totalRain.toFixed(1)} mm</span>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between text-zinc-500 mt-1 pt-1 border-t border-white/5 text-[8px]">
-                  <span>Opady:</span>
-                  <span>0 mm</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Bottom: Aligned with Chart 2 (Wiatr & Chmury) */}
-          <div className="flex-1 min-h-0 flex flex-col justify-center py-1">
-            <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-300 mb-1">
-              <Wind size={12} className="shrink-0" />
-              <span className="truncate">Wiatr & Chmury</span>
-            </div>
-            <div className="flex flex-col gap-0.5 text-[9px]">
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Porywy:</span>
-                <span className="font-bold text-rose-400 font-mono">{stats.maxGust} km/h</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Maks wiatr:</span>
-                <span className="font-bold text-emerald-300 font-mono">{stats.maxWind} km/h</span>
-              </div>
-              <div className="flex items-center justify-between text-slate-400 mt-1 pt-1 border-t border-white/5 text-[8px]">
-                <div className="flex items-center gap-0.5">
-                  <Cloud size={9} className="text-slate-400 shrink-0" />
-                  <span>Chmury:</span>
-                </div>
-                <span className="font-mono text-zinc-300">0–100%</span>
-              </div>
-              {nextSunEvent && (
-                <div className="mt-1 pt-1 border-t border-white/5 text-[8px] flex items-center gap-1 text-amber-300/90 font-mono truncate">
-                  <span>{nextSunEvent.type === 'sunrise' ? '↑' : '↓'}</span>
-                  <span>{nextSunEvent.type === 'sunrise' ? 'Wschód' : 'Zachód'} {nextSunEvent.timeStr}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Scrollable Track */}
+      {/* Main Scrollable Track (Both charts fit with maximum panoramic width) */}
+      <div
+        ref={scrollContainerRef}
+        onMouseDown={handleMouseDown}
+        className="flex-1 min-h-0 overflow-x-auto overflow-y-auto px-2 py-1.5 flex flex-col [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full touch-pan-x cursor-ew-resize pr-12"
+      >
         <div
-          ref={scrollContainerRef}
-          onMouseDown={handleMouseDown}
-          className="flex-1 min-h-0 overflow-x-auto overflow-y-auto px-2 py-1.5 flex flex-col [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full touch-pan-x cursor-ew-resize"
+          style={{ width: `${chartWidth}px`, minWidth: '100%' }}
+          className="h-full flex flex-col justify-between gap-1.5"
         >
+          {/* Redesigned Two-Tier Timeline Hours Row (~26px) */}
           <div
-            style={{ width: `${chartWidth}px`, minWidth: '100%' }}
-            className="h-full flex flex-col justify-between gap-1.5"
+            className="shrink-0 h-[26px] relative overflow-hidden rounded-lg border border-white/10 select-none bg-zinc-950/60 shadow-xs"
+            style={{ width: `${chartWidth}px` }}
           >
-            {/* Timeline Hours Row (~22px) with Day/Night Backgrounds and Sunrise/Sunset Markers */}
-            <div
-              className="shrink-0 h-[22px] relative overflow-hidden rounded-md border border-white/10 select-none"
-              style={{ width: `${chartWidth}px` }}
-            >
-              {/* Exact Day and Night Background Bands on the timeline */}
-              <div className="absolute inset-0 flex pointer-events-none">
-                {exactDayNightSpans.map((span, idx) => (
-                  <div
-                    key={`time-span-${idx}`}
-                    style={{
-                      position: 'absolute',
-                      left: `${span.startX}px`,
-                      width: `${span.width}px`,
-                      height: '100%',
-                    }}
-                    className={`flex items-center justify-end pr-2 transition-colors ${
-                      span.isDay
-                        ? 'bg-gradient-to-r from-amber-500/25 via-amber-400/15 to-amber-500/20 border-b border-amber-400/40'
-                        : 'bg-gradient-to-r from-indigo-950/90 via-slate-950/90 to-indigo-950/85 border-b border-indigo-400/30'
-                    }`}
-                  >
-                    {span.width >= 40 && (
-                      <span
-                        className={`text-[7.5px] font-bold uppercase tracking-wider flex items-center gap-0.5 select-none opacity-85 ${
-                          span.isDay ? 'text-amber-200' : 'text-blue-200'
-                        }`}
-                      >
-                        {span.isDay ? '☀ Dzień' : '☾ Noc'}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Exact Sunrise / Sunset vertical dashed lines on timeline */}
-              {sunEvents.map((event, idx) => (
+            {/* Exact Day and Night Background Bands on the timeline */}
+            <div className="absolute inset-0 flex pointer-events-none">
+              {exactDayNightSpans.map((span, idx) => (
                 <div
-                  key={`time-sun-${idx}`}
-                  style={{ left: `${event.x}px` }}
-                  className={`absolute top-0 bottom-0 w-px border-l border-dashed pointer-events-none z-10 ${
-                    event.type === 'sunrise' ? 'border-amber-400/80' : 'border-orange-400/80'
+                  key={`time-span-${idx}`}
+                  style={{
+                    position: 'absolute',
+                    left: `${span.startX}px`,
+                    width: `${span.width}px`,
+                    height: '100%',
+                  }}
+                  className={`border-b transition-colors ${
+                    span.isDay
+                      ? 'bg-gradient-to-r from-amber-500/20 via-amber-400/15 to-amber-500/20 border-amber-400/40'
+                      : 'bg-gradient-to-r from-indigo-950/85 via-slate-950/90 to-indigo-950/85 border-indigo-400/30'
                   }`}
                 />
               ))}
+            </div>
 
-              {/* Grid of hour buttons */}
+            {/* Exact Sunrise / Sunset vertical dashed lines on timeline */}
+            {sunEvents.map((event, idx) => (
               <div
-                className="absolute inset-0 grid items-center text-center"
-                style={{ gridTemplateColumns: `repeat(${hours.length}, ${colWidth}px)` }}
-              >
-                {hours.map((h, i) => {
-                  const isSelected = activeHourIdx === i;
-                  const isStep = isStepColumn(h, i);
-                  const showLabel = isStep || h.isCurrent || isSelected;
+                key={`time-sun-${idx}`}
+                style={{ left: `${event.x}px` }}
+                className={`absolute top-0 bottom-0 w-px border-l border-dashed pointer-events-none z-10 ${
+                  event.type === 'sunrise' ? 'border-amber-400/80' : 'border-orange-400/80'
+                }`}
+              />
+            ))}
 
-                  return (
-                    <div
-                      key={h.idx}
-                      data-testid={`hour-btn-${i}`}
-                      className="flex flex-col items-center justify-center h-full relative cursor-pointer"
-                      onClick={() => openOrUpdateHud(i)}
-                    >
-                      {/* Active selection outline */}
-                      {isSelected && (
-                        <div className="absolute inset-0 bg-cyan-500/35 border border-cyan-400 z-20 shadow-[0_0_8px_rgba(34,211,238,0.6)]" />
-                      )}
-                      {h.isCurrent && !isSelected && (
-                        <div className="absolute inset-0 bg-blue-500/25 border-b-2 border-blue-400 z-10" />
-                      )}
+            {/* Two-Row Grid of Hours and Day Names */}
+            <div
+              className="absolute inset-0 grid items-center text-center"
+              style={{ gridTemplateColumns: `repeat(${hours.length}, ${colWidth}px)` }}
+            >
+              {hours.map((h, i) => {
+                const isSelected = activeHourIdx === i;
+                const isStep = isStepColumn(h, i);
+                const showLabel = isStep || h.isCurrent || isSelected;
 
-                      {/* Day Name Indicator for new days */}
-                      {h.isNewDay && (
-                        <span className="absolute -top-0.5 left-0.5 text-[7px] font-bold uppercase text-amber-300 z-20 font-mono drop-shadow">
+                return (
+                  <div
+                    key={h.idx}
+                    data-testid={`hour-btn-${i}`}
+                    className="flex flex-col justify-between h-full relative cursor-pointer py-0.5"
+                    onClick={() => openOrUpdateHud(i)}
+                  >
+                    {/* Active selection outline */}
+                    {isSelected && (
+                      <div className="absolute inset-0 bg-cyan-500/35 border border-cyan-400 z-20 shadow-[0_0_8px_rgba(34,211,238,0.6)] rounded-sm" />
+                    )}
+                    {h.isCurrent && !isSelected && (
+                      <div className="absolute inset-0 bg-blue-500/20 border-b-2 border-blue-400 z-10 rounded-sm" />
+                    )}
+
+                    {/* Row 1: Day Name on new day boundary (Separated, zero collision!) */}
+                    <div className="h-[9px] flex items-center justify-center z-20">
+                      {h.isNewDay ? (
+                        <span className="text-[7.5px] font-black uppercase text-amber-300 font-mono tracking-wider leading-none drop-shadow">
                           {h.dayName}
                         </span>
-                      )}
+                      ) : null}
+                    </div>
 
-                      {/* Hour label */}
+                    {/* Row 2: Hour label */}
+                    <div className="h-[12px] flex items-center justify-center z-20">
                       <span
-                        className={`font-mono tabular-nums leading-none z-20 ${
+                        className={`font-mono tabular-nums leading-none ${
                           isSelected
                             ? 'text-white font-black text-[9.5px]'
                             : h.isCurrent
-                            ? 'text-cyan-300 font-black text-[8.5px]'
+                            ? 'text-cyan-300 font-black text-[8px]'
                             : showLabel
                             ? h.isDay
-                              ? 'text-amber-100 font-bold text-[9px]'
-                              : 'text-indigo-100/90 font-medium text-[9px]'
-                            : 'text-zinc-500/60 text-[7px]'
+                              ? 'text-amber-100 font-bold text-[8.5px]'
+                              : 'text-blue-100 font-medium text-[8.5px]'
+                            : 'text-zinc-500/50 text-[6.5px]'
                         }`}
                       >
                         {h.isCurrent ? 'Teraz' : showLabel ? h.hourNum.toString().padStart(2, '0') : '·'}
                       </span>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
+          </div>
 
-            {/* WYKRES 1: TEMPERATURA & OPADY (flex-1) */}
+          {/* WYKRES 1: TEMPERATURA & OPADY (flex-1) */}
             <div className="flex-1 min-h-0 rounded-xl bg-zinc-900/40 border border-white/10 p-2 flex flex-col relative overflow-hidden shadow-md">
               {/* Visualizer: Temperature Curve + Precipitation Bars */}
             <div className="flex-1 min-h-0 relative w-full">
@@ -1086,6 +1003,13 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                     <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.22" />
                     <stop offset="60%" stopColor="#38bdf8" stopOpacity="0.08" />
                     <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
+                  </linearGradient>
+
+                  {/* Apparent temperature ambient fill gradient */}
+                  <linearGradient id="landscapeApparentAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#818cf8" stopOpacity="0.14" />
+                    <stop offset="60%" stopColor="#c084fc" stopOpacity="0.05" />
+                    <stop offset="100%" stopColor="#818cf8" stopOpacity="0" />
                   </linearGradient>
 
                   {/* Rain bar vertical gradient */}
@@ -1213,6 +1137,21 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   />
                 )}
 
+                {/* Apparent Temperature: Soft ambient background fill (no values, background only) */}
+                <path d={apparentAreaD} fill="url(#landscapeApparentAreaGrad)" className="pointer-events-none" />
+
+                {/* Apparent Temperature: Subtle dashed guide curve */}
+                <path
+                  d={apparentSplineD}
+                  fill="none"
+                  stroke="rgba(167, 139, 250, 0.45)"
+                  strokeWidth="1.6"
+                  strokeDasharray="3 3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]"
+                />
+
                 {/* Temperature Area Glow */}
                 <path d={tempAreaD} fill="url(#landscapeTempAreaGrad)" />
 
@@ -1284,66 +1223,46 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   );
                 })}
 
-                {/* Reorganized Precipitation Section: Two-tier clear visualization */}
-                {/* Baseline dividing amount [mm] above from probability [%] below */}
-                <line x1="0" y1="96" x2={chartWidth} y2="96" stroke="rgba(255,255,255,0.09)" strokeDasharray="3 3" />
-                <text x="3" y="94" fill="rgba(34,211,238,0.4)" fontSize="6" fontWeight="bold" className="font-mono select-none">mm</text>
-                <text x="3" y="104" fill="rgba(56,189,248,0.4)" fontSize="6" fontWeight="bold" className="font-mono select-none">%</text>
-
-                {/* 1. Probability Ghost Columns & Percentage Labels */}
+                {/* Precipitation Bars & Probability Columns (Clean, zero clutter) */}
+                {/* 1. Translucent Probability Bars (when probability >= 15%) */}
                 {hours.map((h, idx) => {
-                  if (h.precipProb < 10) return null;
+                  if (h.precipProb < 15) return null;
                   const p = tempPoints[idx];
-                  const probWidth = Math.max(8, colWidth - 4);
-                  const maxProbH = 24;
-                  const probH = Math.max(3, Math.round((h.precipProb / 100) * maxProbH));
-                  const probY = 96 - probH;
+                  const probWidth = Math.max(6, colWidth - 4);
+                  const probH = Math.max(3, Math.min(20, Math.round((h.precipProb / 100) * 18)));
+                  const probY = 104 - probH;
 
                   return (
-                    <g key={`prob-col-${idx}`} className="cursor-pointer pointer-events-auto" onClick={() => openOrUpdateHud(idx)}>
-                      {/* Translucent probability bar */}
-                      <rect
-                        x={p.x - probWidth / 2}
-                        y={probY}
-                        width={probWidth}
-                        height={probH}
-                        rx="2"
-                        fill="rgba(56, 189, 248, 0.15)"
-                        stroke="rgba(56, 189, 248, 0.35)"
-                        strokeWidth="0.75"
-                      />
-                      {/* Clean horizontal baseline probability text */}
-                      <text
-                        x={p.x}
-                        y={105.5}
-                        fill="#38bdf8"
-                        fontSize="6.5"
-                        fontWeight="semibold"
-                        textAnchor="middle"
-                        className="font-mono select-none"
-                      >
-                        {h.precipProb}%
-                      </text>
-                    </g>
+                    <rect
+                      key={`prob-bg-${idx}`}
+                      x={p.x - probWidth / 2}
+                      y={probY}
+                      width={probWidth}
+                      height={probH}
+                      rx="1.5"
+                      fill="rgba(56, 189, 248, 0.14)"
+                      stroke="rgba(56, 189, 248, 0.25)"
+                      strokeWidth="0.5"
+                      className="pointer-events-none"
+                    />
                   );
                 })}
 
-                {/* 2. Solid Precipitation Volume Bars [mm] & Values */}
+                {/* 2. Solid Precipitation Volume Bars [mm] with mm label on top */}
                 {hours.map((h, idx) => {
                   if (h.precipAmount <= 0) return null;
 
                   const p = tempPoints[idx];
                   const solidWidth = Math.max(6, Math.min(10, colWidth - 8));
                   const maxRain = Math.max(1.5, stats.maxRain);
-                  const barH = Math.max(4, Math.min(24, Math.round((h.precipAmount / maxRain) * 22)));
-                  const barY = 96 - barH;
+                  const barH = Math.max(4, Math.min(26, Math.round((h.precipAmount / maxRain) * 24)));
+                  const barY = 104 - barH;
                   const isSnow =
                     (h.weathercode >= 71 && h.weathercode <= 77) ||
                     (h.weathercode >= 85 && h.weathercode <= 86);
 
                   return (
                     <g key={`precip-bar-${idx}`} className="cursor-pointer pointer-events-auto" onClick={() => openOrUpdateHud(idx)}>
-                      {/* Solid amount bar */}
                       <rect
                         x={p.x - solidWidth / 2}
                         y={barY}
@@ -1355,10 +1274,9 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                         stroke="#0ea5e9"
                         strokeWidth="0.5"
                       />
-                      {/* Precise mm value floating cleanly above solid bar */}
                       <text
                         x={p.x}
-                        y={barY - 2.5}
+                        y={barY - 2}
                         fill="#67e8f9"
                         fontSize="7.5"
                         fontWeight="bold"
@@ -1376,6 +1294,12 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
 
           {/* WYKRES 2: WIATR, PORYWY & ZACHMURZENIE (flex-1) */}
           <div className="flex-1 min-h-0 rounded-xl bg-zinc-900/40 border border-white/10 p-2 flex flex-col relative overflow-hidden shadow-md">
+            {/* Corner Badge */}
+            <div className="absolute top-1.5 left-2 z-10 flex items-center gap-1.5 pointer-events-none">
+              <span className="text-[10px] font-bold text-emerald-300/90 bg-zinc-950/75 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/10 flex items-center gap-1">
+                <Wind size={10} /> Wiatr, porywy & chmury
+              </span>
+            </div>
             {/* Visualizer: Cloud Area + Wind Spline + Gust Whiskers + Direction Arrows */}
             <div className="flex-1 min-h-0 relative w-full">
               <svg
@@ -1526,12 +1450,12 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                 {windPoints.map((p, idx) => {
                   const h = hours[idx];
                   const isSelected = activeHourIdx === idx;
-                  const hasMeaningfulGust = h.windGusts >= 14 && h.windGusts > h.windSpeed + 2;
-                  if (!hasMeaningfulGust && !isSelected) return null;
+                  // Show gust marker for every hour with gust data
+                  const hasGust = h.windGusts > h.windSpeed || h.windGusts >= 8;
+                  if (!hasGust && !isSelected) return null;
 
                   const gustY = getWindY(h.windGusts);
-                  const isPeak = stats.maxGust >= 16 && h.windGusts === stats.maxGust;
-                  const showGustNum = isSelected || isPeak || hasMeaningfulGust;
+                  const showGustNum = true;
                   const halfWidth = 4.5;
                   const gustColor = getSmoothWindColor(h.windGusts);
 
@@ -1657,7 +1581,6 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
             </div>
           </div>
         </div>
-      </div>
       </div>
     </div>
   );
