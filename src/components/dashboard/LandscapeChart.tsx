@@ -13,9 +13,8 @@ import {
   Gauge,
   Navigation,
   X,
-  ChevronLeft,
-  ChevronRight,
   RotateCw,
+  ArrowUp,
 } from 'lucide-react';
 
 interface LandscapeChartProps {
@@ -107,26 +106,31 @@ function getSmoothWindColor(speed: number): string {
 }
 
 export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) {
-  const [days, setDays] = useState<1 | 3 | 7>(3);
+  const days = 7;
   const [activeHourIdx, setActiveHourIdx] = useState<number | null>(null);
+  const [isScrubbing, setIsScrubbing] = useState<boolean>(false);
+  const [isClosing, setIsClosing] = useState<boolean>(false);
+
+  const isScrubbingRef = useRef<boolean>(false);
+  const isClosingRef = useRef<boolean>(false);
+  const isLongPressActiveRef = useRef<boolean>(false);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number; time: number }>({ x: 0, y: 0, time: 0 });
+  const closeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoScrollRafRef = useRef<number | null>(null);
+  const currentPointerXRef = useRef<number | null>(null);
+  const justFinishedDraggingRef = useRef<boolean>(false);
+  const dragDistanceRef = useRef<number>(0);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const hudRef = useRef<HTMLDivElement>(null);
   const autoDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Column width tightened to 22-26px as requested
-  const colWidth = useMemo(() => {
-    if (days === 1) return 26;
-    if (days === 3) return 24;
-    return 22;
-  }, [days]);
+  const colWidth = 22;
 
   // Step for displaying hour labels, degree values, and weather icons
-  const hourStep = useMemo(() => {
-    if (days === 1) return 2;
-    if (days === 3) return 3;
-    return 6;
-  }, [days]);
+  const hourStep = 6;
 
   // Unified step column condition: consistent across hour row, icons, temp values, wind values
   const isStepColumn = useCallback(
@@ -302,75 +306,300 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
     };
   }, []);
 
-  const openHud = useCallback((idx: number) => {
+  const closeHud = useCallback(() => {
+    if (activeHourIdx === null || isClosingRef.current) return;
+    setIsClosing(true);
+    isClosingRef.current = true;
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      setActiveHourIdx(null);
+      setIsClosing(false);
+      isClosingRef.current = false;
+      closeTimerRef.current = null;
+    }, 200);
+  }, [activeHourIdx]);
+
+  const openOrUpdateHud = useCallback((idx: number) => {
     if (autoDismissTimerRef.current) {
       clearTimeout(autoDismissTimerRef.current);
+      autoDismissTimerRef.current = null;
     }
-    const hourX = idx * colWidth + colWidth / 2;
-    const scrollLeft = scrollContainerRef.current?.scrollLeft ?? 0;
-    const viewportWidth = scrollContainerRef.current?.clientWidth ?? (typeof window !== 'undefined' ? window.innerWidth : 800);
-    const visibleX = hourX - scrollLeft;
-    setHudAnchor(visibleX > viewportWidth / 2 ? 'left' : 'right');
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setIsClosing(false);
+    isClosingRef.current = false;
+    
+    // Dynamic left/right anchoring to avoid covering finger
+    if (scrollContainerRef.current) {
+      const hourX = idx * colWidth + colWidth / 2;
+      const scrollLeft = scrollContainerRef.current.scrollLeft;
+      const viewportWidth = scrollContainerRef.current.clientWidth;
+      const visibleX = hourX - scrollLeft;
+      setHudAnchor(visibleX > viewportWidth / 2 ? 'left' : 'right');
+    }
     setActiveHourIdx(idx);
-    autoDismissTimerRef.current = setTimeout(() => {
-      setActiveHourIdx(null);
-    }, 10000);
   }, [colWidth]);
 
-  const closeHud = useCallback(() => {
+  const scheduleAutoDismiss = useCallback((delayMs: number = 7000) => {
     if (autoDismissTimerRef.current) {
       clearTimeout(autoDismissTimerRef.current);
     }
-    setActiveHourIdx(null);
-  }, []);
+    autoDismissTimerRef.current = setTimeout(() => {
+      closeHud();
+    }, delayMs);
+  }, [closeHud]);
 
-  const goToPrevHour = useCallback(() => {
-    if (activeHourIdx === null) return;
-    const prev = Math.max(0, activeHourIdx - 1);
-    openHud(prev);
-  }, [activeHourIdx, openHud]);
+  const updateScrubPosition = useCallback((clientX: number) => {
+    if (!scrollContainerRef.current) return;
+    const rect = scrollContainerRef.current.getBoundingClientRect();
+    const relX = clientX - rect.left + scrollContainerRef.current.scrollLeft;
+    const idx = Math.max(0, Math.min(hours.length - 1, Math.floor(relX / colWidth)));
+    openOrUpdateHud(idx);
+  }, [colWidth, hours.length, openOrUpdateHud]);
 
-  const goToNextHour = useCallback(() => {
-    if (activeHourIdx === null) return;
-    const next = Math.min(hours.length - 1, activeHourIdx + 1);
-    openHud(next);
-  }, [activeHourIdx, hours.length, openHud]);
-
-  useEffect(() => {
-    return () => {
-      if (autoDismissTimerRef.current) {
-        clearTimeout(autoDismissTimerRef.current);
+  const startEdgeAutoScroll = useCallback(() => {
+    if (autoScrollRafRef.current) return;
+    const loop = () => {
+      if (!scrollContainerRef.current || currentPointerXRef.current === null || !isScrubbingRef.current) {
+        autoScrollRafRef.current = null;
+        return;
       }
-    };
-  }, []);
-
-  // Lock body scroll while landscape modal is open to prevent background scrolling
-  useEffect(() => {
-    const origOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = origOverflow;
-    };
-  }, []);
-
-  // Keyboard navigation: Esc to close, ArrowLeft/ArrowRight to navigate hours
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (activeHourIdx !== null) {
-          closeHud();
-        } else {
-          onClose();
+      const rect = scrollContainerRef.current.getBoundingClientRect();
+      const pointerX = currentPointerXRef.current;
+      const relViewportX = pointerX - rect.left;
+      const edgeThreshold = 45;
+      let speed = 0;
+      if (relViewportX < edgeThreshold && scrollContainerRef.current.scrollLeft > 0) {
+        const factor = Math.max(0, Math.min(1, (edgeThreshold - relViewportX) / edgeThreshold));
+        speed = -Math.max(2, Math.round(factor * 10));
+      } else if (relViewportX > rect.width - edgeThreshold) {
+        const maxScroll = scrollContainerRef.current.scrollWidth - scrollContainerRef.current.clientWidth;
+        if (scrollContainerRef.current.scrollLeft < maxScroll) {
+          const factor = Math.max(0, Math.min(1, (relViewportX - (rect.width - edgeThreshold)) / edgeThreshold));
+          speed = Math.max(2, Math.round(factor * 10));
         }
-      } else if (e.key === 'ArrowLeft') {
-        goToPrevHour();
-      } else if (e.key === 'ArrowRight') {
-        goToNextHour();
       }
+      if (speed !== 0) {
+        scrollContainerRef.current.scrollLeft += speed;
+        updateScrubPosition(pointerX);
+      }
+      autoScrollRafRef.current = requestAnimationFrame(loop);
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeHourIdx, closeHud, onClose, goToPrevHour, goToNextHour]);
+    autoScrollRafRef.current = requestAnimationFrame(loop);
+  }, [updateScrubPosition]);
+
+  const stopEdgeAutoScroll = useCallback(() => {
+    if (autoScrollRafRef.current) {
+      cancelAnimationFrame(autoScrollRafRef.current);
+      autoScrollRafRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const clientX = touch.clientX;
+      const clientY = touch.clientY;
+
+      touchStartPosRef.current = { x: clientX, y: clientY, time: Date.now() };
+      isLongPressActiveRef.current = false;
+      dragDistanceRef.current = 0;
+      currentPointerXRef.current = clientX;
+
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+
+      longPressTimerRef.current = setTimeout(() => {
+        isLongPressActiveRef.current = true;
+        isScrubbingRef.current = true;
+        setIsScrubbing(true);
+
+        try {
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate(35);
+          }
+        } catch (_) {}
+
+        updateScrubPosition(clientX);
+        startEdgeAutoScroll();
+      }, 200);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+      const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+      dragDistanceRef.current = Math.max(dragDistanceRef.current, dx);
+      currentPointerXRef.current = touch.clientX;
+
+      if (!isLongPressActiveRef.current) {
+        if (dx > 7 || dy > 7) {
+          if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+        }
+        return;
+      }
+
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      updateScrubPosition(touch.clientX);
+    };
+
+    const onTouchEnd = () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+
+      if (isLongPressActiveRef.current) {
+        justFinishedDraggingRef.current = true;
+        setTimeout(() => {
+          justFinishedDraggingRef.current = false;
+        }, 350);
+
+        isLongPressActiveRef.current = false;
+        isScrubbingRef.current = false;
+        setIsScrubbing(false);
+        scheduleAutoDismiss(7000);
+      }
+
+      currentPointerXRef.current = null;
+      stopEdgeAutoScroll();
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    el.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+      stopEdgeAutoScroll();
+    };
+  }, [updateScrubPosition, startEdgeAutoScroll, stopEdgeAutoScroll, scheduleAutoDismiss]);
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    dragDistanceRef.current = 0;
+    currentPointerXRef.current = startX;
+
+    let isMouseLongPressActive = false;
+
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    longPressTimerRef.current = setTimeout(() => {
+      isMouseLongPressActive = true;
+      isScrubbingRef.current = true;
+      setIsScrubbing(true);
+      updateScrubPosition(startX);
+      startEdgeAutoScroll();
+    }, 200);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const dx = Math.abs(moveEvent.clientX - startX);
+      const dy = Math.abs(moveEvent.clientY - startY);
+      dragDistanceRef.current = Math.max(dragDistanceRef.current, dx);
+      currentPointerXRef.current = moveEvent.clientX;
+
+      if (!isMouseLongPressActive) {
+        if (dx > 8 || dy > 8) {
+          if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+        }
+        return;
+      }
+
+      updateScrubPosition(moveEvent.clientX);
+    };
+
+    const onMouseUp = () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+
+      if (isMouseLongPressActive) {
+        justFinishedDraggingRef.current = true;
+        setTimeout(() => {
+          justFinishedDraggingRef.current = false;
+        }, 350);
+        isScrubbingRef.current = false;
+        setIsScrubbing(false);
+        scheduleAutoDismiss(7000);
+      }
+
+      currentPointerXRef.current = null;
+      stopEdgeAutoScroll();
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+
+  // Coordinate-based dismiss when tapping strictly outside the chart card
+  useEffect(() => {
+    if (activeHourIdx === null) return;
+    const handlePointerDownOutside = (e: PointerEvent) => {
+      if (isScrubbingRef.current || justFinishedDraggingRef.current) return;
+      if (hudRef.current) {
+        const hRect = hudRef.current.getBoundingClientRect();
+        if (
+          e.clientX >= hRect.left &&
+          e.clientX <= hRect.right &&
+          e.clientY >= hRect.top &&
+          e.clientY <= hRect.bottom
+        ) {
+          return; // Inside HUD, ignore
+        }
+      }
+      closeHud();
+    };
+    const timer = setTimeout(() => {
+      document.addEventListener('pointerdown', handlePointerDownOutside);
+    }, 100);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('pointerdown', handlePointerDownOutside);
+    };
+  }, [activeHourIdx, closeHud]);
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+      if (autoDismissTimerRef.current) clearTimeout(autoDismissTimerRef.current);
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+      if (autoScrollRafRef.current) cancelAnimationFrame(autoScrollRafRef.current);
+    };
+  }, []);
 
   if (!weather || hours.length === 0) return null;
 
@@ -450,289 +679,169 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
           : undefined
       }
     >
-      {/* 1. Unified Single-Line Header (~36px) */}
-      <header className="h-[36px] px-3 shrink-0 flex items-center justify-between gap-2.5 border-b border-white/10 bg-zinc-950/85 backdrop-blur-xl select-none">
-        {/* Left: City + GPS + Compact Metric Badges */}
-        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-          <div className="flex items-center gap-1.5 shrink-0">
-            <h2 className="text-xs sm:text-sm font-bold text-white tracking-tight leading-tight truncate">
-              {city.name}
-            </h2>
-            {city.isGps && (
-              <span className="text-[8px] font-mono font-bold px-1 py-0.2 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 shrink-0">
-                GPS
-              </span>
-            )}
-          </div>
 
-          <span className="text-zinc-600 shrink-0">•</span>
 
-          <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-zinc-300">
-            {/* Min-Max */}
-            <span className="flex items-center gap-0.5 shrink-0 bg-white/[0.04] px-1.5 py-0.5 rounded-full border border-white/5">
-              <span className="text-cyan-300 font-bold">{stats.minTemp}°</span>
-              <span className="text-zinc-500">/</span>
-              <span className="text-amber-300 font-bold">{stats.maxTemp}°C</span>
-            </span>
-
-            {/* Total Rain (if > 0) */}
-            {stats.totalRain > 0 && (
-              <span className="flex items-center gap-1 shrink-0 bg-cyan-500/10 px-1.5 py-0.5 rounded-full border border-cyan-400/20 text-cyan-300">
-                <Droplets size={10} className="text-cyan-400" />
-                <span className="font-semibold">{stats.totalRain.toFixed(1)} mm</span>
-              </span>
-            )}
-
-            {/* Max Gust */}
-            <span className="flex items-center gap-1 shrink-0 bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-400/20 text-emerald-300">
-              <Wind size={10} className="text-emerald-400" />
-              <span className="font-semibold">{stats.maxGust} km/h</span>
-            </span>
-
-            {/* Next Sun Event */}
-            {nextSunEvent && (
-              <span className="flex items-center gap-1 shrink-0 bg-amber-500/10 px-1.5 py-0.5 rounded-full border border-amber-400/20 text-amber-200">
-                <span className="text-amber-400 font-bold">{nextSunEvent.type === 'sunrise' ? '↑' : '↓'}</span>
-                <span className="font-semibold">{nextSunEvent.timeStr}</span>
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Center: Range pills (24h, 3D, 7D) */}
-        <div className="flex items-center bg-zinc-900/90 p-0.5 rounded-full border border-white/10 shadow-inner shrink-0">
+      {/* Floating Controls for Rotate & Close */}
+      <div className="absolute top-2 right-2 z-[60] flex items-center gap-2 pointer-events-auto">
+        {isPortraitViewport && (
           <button
-            onClick={() => {
-              setDays(1);
-              setActiveHourIdx(null);
-            }}
-            className={`px-2 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
-              days === 1
-                ? 'bg-blue-500/30 text-blue-200 border border-blue-400/40 shadow-[0_0_8px_rgba(59,130,246,0.3)]'
-                : 'text-zinc-400 hover:text-zinc-200'
+            onClick={() => setIsForceRotated(!isForceRotated)}
+            className={`flex items-center justify-center w-8 h-8 rounded-full shadow-lg border transition-all cursor-pointer backdrop-blur-xl ${
+              isForceRotated
+                ? 'bg-blue-500/25 text-blue-300 border-blue-400/40 ring-1 ring-blue-400/30'
+                : 'bg-zinc-900/60 hover:bg-zinc-800/80 text-zinc-200 border-white/15 active:scale-95'
             }`}
+            title="Obróć 90°"
           >
-            24h
+            <RotateCw size={14} className={isForceRotated ? 'text-blue-400 rotate-90 transition-transform' : 'text-zinc-300'} />
           </button>
-          <button
-            onClick={() => {
-              setDays(3);
-              setActiveHourIdx(null);
-            }}
-            className={`px-2 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
-              days === 3
-                ? 'bg-blue-500/30 text-blue-200 border border-blue-400/40 shadow-[0_0_8px_rgba(59,130,246,0.3)]'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            3 Dni
-          </button>
-          <button
-            onClick={() => {
-              setDays(7);
-              setActiveHourIdx(null);
-            }}
-            className={`px-2 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
-              days === 7
-                ? 'bg-blue-500/30 text-blue-200 border border-blue-400/40 shadow-[0_0_8px_rgba(59,130,246,0.3)]'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            7 Dni
-          </button>
-        </div>
-
-        {/* Right: Rotate Toggle (when in portrait) + Close button */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          {isPortraitViewport && (
-            <button
-              onClick={() => setIsForceRotated(!isForceRotated)}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-all cursor-pointer ${
-                isForceRotated
-                  ? 'bg-blue-500/25 text-blue-300 border-blue-400/40 ring-1 ring-blue-400/30'
-                  : 'bg-white/10 hover:bg-white/20 text-zinc-200 border-white/15 active:scale-95'
-              }`}
-              title={isForceRotated ? 'Przywróć orientację pionową' : 'Obróć wykres do poziomu (90°)'}
-              aria-label="Obróć wykres o 90 stopni"
-            >
-              <RotateCw size={11} className={isForceRotated ? 'text-blue-400 rotate-90 transition-transform' : 'text-zinc-300'} />
-              <span>{isForceRotated ? 'Pionowo' : 'Obróć 90°'}</span>
-            </button>
-          )}
-
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 border border-white/15 text-[11px] font-semibold text-zinc-200 hover:text-white transition-all cursor-pointer"
-            title="Zamknij widok poziomy (Esc)"
-            aria-label="Zamknij widok poziomy"
-          >
-            <X size={13} />
-            <span className="hidden sm:inline">Zamknij</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Subtle Prompt Banner when opened in portrait without 90deg rotation */}
-      {isPortraitViewport && !isForceRotated && (
-        <div className="bg-blue-950/45 border-b border-blue-400/20 px-3 py-1 flex items-center justify-between text-[11px] text-blue-200 backdrop-blur-md shrink-0">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <RotateCw size={12} className="text-blue-400 shrink-0" />
-            <span className="truncate">Obróć telefon poziomo lub kliknij:</span>
-          </div>
-          <button
-            onClick={() => setIsForceRotated(true)}
-            className="ml-2 px-2.5 py-0.5 rounded-full bg-blue-500/30 hover:bg-blue-500/40 border border-blue-400/40 text-blue-200 text-[10px] font-bold shrink-0 cursor-pointer active:scale-95 shadow-sm"
-          >
-            Obróć widok (90°)
-          </button>
-        </div>
-      )}
-
-      {/* 3. Floating HUD Card (Overlay on user interaction - does not shift chart height) */}
-      {activeHour && activeHourInfo && (
-        <div
-          ref={hudRef}
-          className={`absolute top-10 z-50 rounded-2xl bg-zinc-950/85 border border-white/15 backdrop-blur-2xl p-2.5 sm:p-3 shadow-[0_20px_50px_rgba(0,0,0,0.85)] ring-1 ring-cyan-400/30 animate-in fade-in zoom-in-95 duration-150 max-w-[calc(100vw-24px)] sm:max-w-xl ${
-            hudAnchor === 'left' ? 'left-3 right-auto' : 'right-3 left-auto'
-          }`}
+        )}
+        <button
+          onClick={onClose}
+          className="flex items-center justify-center w-8 h-8 rounded-full shadow-lg bg-zinc-900/60 hover:bg-zinc-800/80 backdrop-blur-xl border border-white/15 text-zinc-200 active:scale-95 transition-all cursor-pointer"
+          title="Zamknij"
         >
-          {/* HUD Header: Prev/Next Buttons + Time Pill + Date + Day/Night + Sun Times + Close */}
-          <div className="flex items-center justify-between gap-2 pb-2 border-b border-white/10">
-            <div className="flex items-center gap-1.5 min-w-0">
-              {/* Step Previous */}
-              <button
-                type="button"
-                onClick={goToPrevHour}
-                disabled={activeHourIdx === 0}
-                className="w-5 h-5 rounded-md bg-white/10 hover:bg-white/20 active:scale-90 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center text-zinc-300 hover:text-white transition cursor-pointer shrink-0"
-                title="Poprzednia godzina (Strzałka w lewo)"
-              >
-                <ChevronLeft size={13} />
-              </button>
+          <X size={16} />
+        </button>
+      </div>
 
-              {/* Hour Tag */}
-              <span className="px-1.5 py-0.5 rounded-md bg-cyan-500/25 border border-cyan-400/40 text-[11px] font-mono font-bold text-cyan-300 uppercase shrink-0 shadow-[0_0_8px_rgba(34,211,238,0.25)]">
-                {activeHour.isCurrent ? 'Teraz' : activeHour.hourStr}
-              </span>
+      {/* Interactive Scrubber HUD: Detailed weather popup floating above the chart */}
+      {activeHourIdx !== null && (() => {
+        const activeHour = hours[activeHourIdx];
+        if (!activeHour) return null;
 
-              {/* Step Next */}
-              <button
-                type="button"
-                onClick={goToNextHour}
-                disabled={activeHourIdx === hours.length - 1}
-                className="w-5 h-5 rounded-md bg-white/10 hover:bg-white/20 active:scale-90 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center text-zinc-300 hover:text-white transition cursor-pointer shrink-0"
-                title="Następna godzina (Strzałka w prawo)"
-              >
-                <ChevronRight size={13} />
-              </button>
+        const info = getWeatherInfo(activeHour.weathercode, activeHour.isDay);
+        const cloudInfo = getCloudCoverInfo(activeHour.cloudCover);
+        const hourTitle = activeHour.isCurrent
+          ? 'Teraz'
+          : `${activeHour.hourNum.toString().padStart(2, '0')}:00`;
 
-              {/* Full Date */}
-              <span className="text-xs font-semibold text-zinc-200 truncate ml-0.5">
-                {activeHour.fullDate}
-              </span>
-
-              {/* Day/Night Badge */}
-              <span className={`text-[9px] font-semibold px-1.5 py-0.2 rounded-full border shrink-0 ${
-                activeHour.isDay
-                  ? 'bg-amber-500/15 text-amber-200 border-amber-400/30'
-                  : 'bg-indigo-500/15 text-indigo-200 border-indigo-400/30'
-              }`}>
-                {activeHour.isDay ? 'Dzień' : 'Noc'}
-              </span>
-            </div>
-
-            {/* Sun Times for active day + Close Button */}
-            <div className="flex items-center gap-2 shrink-0">
-              {activeDaySunrise && activeDaySunset && (
-                <div className="flex items-center gap-1.5 text-[9.5px] font-mono font-medium px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10">
-                  <span className="text-amber-300">☀ ↑{formatTime(activeDaySunrise)}</span>
-                  <span className="text-zinc-600">•</span>
-                  <span className="text-orange-300">↓{formatTime(activeDaySunset)}</span>
+        return (
+          <div
+            ref={hudRef}
+            className={`absolute top-2 z-50 p-2.5 rounded-2xl bg-zinc-950/95 border border-cyan-400/50 backdrop-blur-2xl shadow-[0_12px_36px_rgba(0,0,0,0.85)] flex flex-col gap-1.5 transition-all duration-200 ease-out select-none ${
+              hudAnchor === 'left' ? 'left-3 right-auto' : 'right-3 left-auto'
+            } ${
+              isClosing
+                ? 'opacity-0 translate-y-2 scale-[0.98] pointer-events-none'
+                : 'opacity-100 translate-y-0 scale-100 animate-in fade-in-0 slide-in-from-bottom-2'
+            }`}
+          >
+            {/* Top Command Bar: Hour badge, Weather condition & Temp, Close button */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex flex-col shrink-0 items-start">
+                  <span className="px-1.5 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-400/30 text-[10px] font-mono font-black text-cyan-300 uppercase tracking-wider">
+                    {hourTitle}
+                  </span>
+                  <span className="text-[7.5px] text-zinc-400 font-semibold uppercase tracking-wider pl-0.5 mt-0.5">
+                    {activeHour.isDay ? 'Dzień' : 'Noc'}
+                  </span>
                 </div>
-              )}
+
+                <div className="w-px h-6 bg-white/10 shrink-0" />
+
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <WeatherIcon code={activeHour.weathercode} isDay={activeHour.isDay} size={24} glow={false} />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-bold text-white truncate leading-tight">
+                      {info.label}
+                    </span>
+                    <span className="text-[9.5px] text-zinc-300 tabular-nums leading-tight mt-0.5">
+                      <strong className="text-white font-bold">{activeHour.temp}°</strong>
+                      <span className="text-zinc-400 ml-1.5">odcz. {activeHour.apparentTemp}°</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
 
               <button
-                onClick={closeHud}
-                className="w-5 h-5 rounded-full bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center text-zinc-400 hover:text-white transition cursor-pointer shrink-0"
-                title="Zamknij podgląd (Esc)"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeHud();
+                }}
+                className="w-6 h-6 rounded-full bg-white/10 border border-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center text-zinc-400 hover:text-white transition cursor-pointer shrink-0"
+                title="Zamknij podgląd"
               >
-                <X size={12} />
+                <X size={12} strokeWidth={2.5} />
               </button>
             </div>
+
+            {/* Bottom Cockpit Metrics Grid: 4 micro-cards (Chmury, Opady, Wiatr, Warunki) */}
+            <div className="grid grid-cols-4 gap-1 pt-1.5 border-t border-white/10">
+              {/* 1. Zachmurzenie */}
+              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
+                <div className="flex items-center gap-1 text-slate-300">
+                  <Cloud size={10} className="text-slate-300 shrink-0" />
+                  <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 truncate">Chmury</span>
+                </div>
+                <span className="text-xs font-black text-white tabular-nums my-0.5">
+                  {activeHour.cloudCover}%
+                </span>
+                <span className="text-[7.5px] text-slate-300/90 font-medium truncate leading-none">
+                  {cloudInfo?.label || 'Chmury'}
+                </span>
+              </div>
+
+              {/* 2. Opady */}
+              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
+                <div className="flex items-center gap-1 text-cyan-400">
+                  <Droplets size={10} className="text-cyan-400 shrink-0" />
+                  <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 truncate">Opady</span>
+                </div>
+                <span className="text-xs font-black text-cyan-300 tabular-nums my-0.5">
+                  {activeHour.precipAmount > 0 ? `${activeHour.precipAmount.toFixed(1)} mm` : '0.0 mm'}
+                </span>
+                <span className="text-[7.5px] text-cyan-300/90 font-medium truncate leading-none tabular-nums">
+                  {activeHour.precipProb}% szans
+                </span>
+              </div>
+
+              {/* 3. Wiatr i porywy */}
+              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
+                <div className="flex items-center gap-1 text-emerald-400">
+                  <Wind size={10} className="text-emerald-400 shrink-0" />
+                  <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 truncate">Wiatr</span>
+                </div>
+                <div className="flex items-center gap-0.5 my-0.5 leading-none">
+                  <ArrowUp
+                    size={8}
+                    style={{ transform: `rotate(${activeHour.windDir + 180}deg)` }}
+                    className="text-emerald-400 shrink-0"
+                    strokeWidth={3}
+                  />
+                  <span className="text-xs font-black text-emerald-300 tabular-nums truncate">
+                    {activeHour.windSpeed} <span className="text-[7.5px] font-normal text-zinc-400">km/h</span>
+                  </span>
+                </div>
+                <span className="text-[7.5px] text-emerald-400/90 font-medium truncate leading-none tabular-nums">
+                  por. {activeHour.windGusts} km/h
+                </span>
+              </div>
+
+              {/* 4. Warunki / Wilgotność / Ciśnienie */}
+              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
+                <div className="flex items-center gap-1 text-amber-400">
+                  <Gauge size={10} className="text-amber-400 shrink-0" />
+                  <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 truncate">Warunki</span>
+                </div>
+                <span className="text-xs font-black text-zinc-100 tabular-nums my-0.5">
+                  {activeHour.humidity}% <span className="text-[7.5px] font-normal text-zinc-400">wilg.</span>
+                </span>
+                <span className="text-[7.5px] text-zinc-300/90 font-medium truncate leading-none tabular-nums">
+                  {activeHour.pressure} hPa
+                </span>
+              </div>
+            </div>
           </div>
-
-          {/* HUD Content: 5 Rich Glassmorphic Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2">
-            {/* 1. Temp & Conditions */}
-            <div className="flex items-center gap-2 bg-white/[0.05] hover:bg-white/[0.07] p-2 rounded-xl border border-white/10 transition">
-              <WeatherIcon code={activeHour.weathercode} isDay={activeHour.isDay} size={24} glow={false} />
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-black text-white leading-tight">{activeHour.temp}°C</span>
-                <span className="text-[9px] text-zinc-400 truncate">odcz. {activeHour.apparentTemp}°C</span>
-                <span className="text-[8.5px] text-zinc-300 font-medium truncate">{activeHourInfo.label}</span>
-              </div>
-            </div>
-
-            {/* 2. Precipitation */}
-            <div className="flex flex-col justify-between bg-white/[0.05] hover:bg-white/[0.07] p-2 rounded-xl border border-white/10 transition">
-              <div className="flex items-center gap-1 text-cyan-400">
-                <Droplets size={11} />
-                <span className="text-[9px] font-bold uppercase text-zinc-400">Opady</span>
-              </div>
-              <span className="text-xs font-black text-cyan-300 leading-tight">{activeHour.precipAmount.toFixed(1)} mm</span>
-              <span className="text-[9px] text-cyan-200/80 font-medium">{activeHour.precipProb}% szans</span>
-            </div>
-
-            {/* 3. Wind */}
-            <div className="flex flex-col justify-between bg-white/[0.05] hover:bg-white/[0.07] p-2 rounded-xl border border-white/10 transition">
-              <div className="flex items-center gap-1 text-emerald-400">
-                <Wind size={11} />
-                <span className="text-[9px] font-bold uppercase text-zinc-400">Wiatr</span>
-              </div>
-              <div className="flex items-center gap-1 text-xs font-black text-emerald-300 leading-tight">
-                <Navigation
-                  size={10}
-                  style={{ transform: `rotate(${activeHour.windDir}deg)` }}
-                  className="text-emerald-400 fill-current"
-                />
-                <span>{activeHour.windSpeed} km/h</span>
-              </div>
-              <span className="text-[9px] text-emerald-300/80 font-medium truncate">
-                porywy {activeHour.windGusts} ({degreesToCardinal(activeHour.windDir)})
-              </span>
-            </div>
-
-            {/* 4. Clouds */}
-            <div className="flex flex-col justify-between bg-white/[0.05] hover:bg-white/[0.07] p-2 rounded-xl border border-white/10 transition">
-              <div className="flex items-center gap-1 text-slate-300">
-                <Cloud size={11} />
-                <span className="text-[9px] font-bold uppercase text-zinc-400">Chmury</span>
-              </div>
-              <span className="text-xs font-black text-white leading-tight">{activeHour.cloudCover}%</span>
-              <span className="text-[9px] text-slate-300/80 font-medium truncate">
-                {activeHourCloudInfo?.label || 'Chmury'}
-              </span>
-            </div>
-
-            {/* 5. Conditions / Pressure & UV */}
-            <div className="flex flex-col justify-between bg-white/[0.05] hover:bg-white/[0.07] p-2 rounded-xl border border-white/10 transition">
-              <div className="flex items-center gap-1 text-amber-400">
-                <Gauge size={11} />
-                <span className="text-[9px] font-bold uppercase text-zinc-400">Warunki</span>
-              </div>
-              <span className="text-xs font-black text-zinc-100 leading-tight">{activeHour.pressure} hPa</span>
-              <span className="text-[9px] text-zinc-400 font-medium truncate">
-                Wilg. {activeHour.humidity}% • UV {activeHour.uvIndex}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 4. Main Scrollable Track (Both charts fit without vertical scroll) */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 min-h-0 overflow-x-auto overflow-y-auto px-2 py-1.5 flex flex-col [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full touch-pan-x"
+        onMouseDown={handleMouseDown}
+        className="flex-1 min-h-0 overflow-x-auto overflow-y-auto px-2 py-1.5 flex flex-col [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full touch-pan-x cursor-ew-resize"
       >
         <div
           style={{ width: `${chartWidth}px`, minWidth: '100%' }}
@@ -753,7 +862,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   type="button"
                   key={h.idx}
                   data-testid={`hour-btn-${i}`}
-                  onClick={() => openHud(i)}
+                  onClick={() => openOrUpdateHud(i)}
                   className={`flex flex-col items-center justify-between h-full rounded-md transition-all cursor-pointer relative py-0.5 ${
                     isSelected
                       ? 'bg-cyan-500/30 border border-cyan-400 text-cyan-200 shadow-[0_0_8px_rgba(34,211,238,0.5)] z-20'
@@ -792,32 +901,27 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
 
           {/* WYKRES 1: TEMPERATURA & OPADY (flex-1) */}
           <div className="flex-1 min-h-0 rounded-xl bg-zinc-900/40 border border-white/10 p-2 flex flex-col relative overflow-hidden shadow-md">
-            {/* Card Header (Stats inline with title so they are never hidden off-screen) */}
-            <div className="shrink-0 h-4 flex items-center justify-between px-1 mb-0.5">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="flex items-center gap-1 text-[11px] font-bold text-amber-300 shrink-0">
-                  <Thermometer size={12} />
-                  <span>Temperatura i opady</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-[9px] text-zinc-400 bg-white/[0.04] px-1.5 py-0.2 rounded-md border border-white/5 shrink-0">
-                  <span className="flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                    <span className="text-zinc-200 font-semibold">Maks: {stats.maxTemp}°C</span>
+            {/* Left aligned absolute stats */}
+            <div className="absolute top-1.5 left-1.5 z-10 flex flex-col items-start gap-1 pointer-events-none">
+              <div className="flex items-center gap-1 text-[11px] font-bold text-amber-300 bg-zinc-900/80 px-1.5 py-0.5 rounded-md backdrop-blur-md border border-white/10">
+                <Thermometer size={12} />
+                <span>Temperatura i opady</span>
+              </div>
+              <div className="flex flex-col gap-0.5 text-[9px] text-zinc-300 bg-zinc-900/80 px-1.5 py-1 rounded-md backdrop-blur-md border border-white/10">
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  <span className="font-semibold">Maks: {stats.maxTemp}°C</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                  <span className="font-semibold">Min: {stats.minTemp}°C</span>
+                </span>
+                {stats.totalRain > 0 && (
+                  <span className="flex items-center gap-1 text-cyan-300">
+                    <Droplets size={10} className="text-cyan-400" />
+                    <span className="font-semibold">Opad: {stats.totalRain.toFixed(1)} mm</span>
                   </span>
-                  <span className="text-zinc-600">•</span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                    <span className="text-zinc-200 font-semibold">Min: {stats.minTemp}°C</span>
-                  </span>
-                  {stats.totalRain > 0 && (
-                    <>
-                      <span className="text-zinc-600">•</span>
-                      <span className="text-cyan-300 font-semibold">
-                        Opad: {stats.totalRain.toFixed(1)} mm
-                      </span>
-                    </>
-                  )}
-                </div>
+                )}
               </div>
             </div>
 
@@ -924,7 +1028,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                     <g
                       key={`sun-event-1-${idx}`}
                       className="cursor-pointer pointer-events-auto select-none group"
-                      onClick={() => openHud(closestHourIdx)}
+                      onClick={() => openOrUpdateHud(closestHourIdx)}
                     >
                       {/* Vertical dashed event line */}
                       <line
@@ -1007,7 +1111,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                     height={110}
                     fill="transparent"
                     className="cursor-pointer pointer-events-auto"
-                    onClick={() => openHud(idx)}
+                    onClick={() => openOrUpdateHud(idx)}
                   />
                 ))}
 
@@ -1019,7 +1123,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   const tColor = getSmoothTempColor(h.temp);
 
                   return (
-                    <g key={`temp-node-${idx}`} className="cursor-pointer pointer-events-auto" onClick={() => openHud(idx)}>
+                    <g key={`temp-node-${idx}`} className="cursor-pointer pointer-events-auto" onClick={() => openOrUpdateHud(idx)}>
                       {isSelected && (
                         <circle
                           cx={p.x}
@@ -1071,7 +1175,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                     (h.weathercode >= 85 && h.weathercode <= 86);
 
                   return (
-                    <g key={`precip-${idx}`} className="cursor-pointer pointer-events-auto" onClick={() => openHud(idx)}>
+                    <g key={`precip-${idx}`} className="cursor-pointer pointer-events-auto" onClick={() => openOrUpdateHud(idx)}>
                       <rect
                         x={p.x - barWidth / 2}
                         y={barY}
@@ -1115,22 +1219,19 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
 
           {/* WYKRES 2: WIATR, PORYWY & ZACHMURZENIE (flex-1) */}
           <div className="flex-1 min-h-0 rounded-xl bg-zinc-900/40 border border-white/10 p-2 flex flex-col relative overflow-hidden shadow-md">
-            {/* Card Header (Stats inline with title so they are never hidden off-screen) */}
-            <div className="shrink-0 h-4 flex items-center justify-between px-1 mb-0.5">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-300 shrink-0">
-                  <Wind size={12} />
-                  <span>Wiatr i zachmurzenie</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-[9px] text-zinc-400 bg-white/[0.04] px-1.5 py-0.2 rounded-md border border-white/5 shrink-0">
-                  <span className="text-emerald-300 font-semibold">
-                    Maks. poryw: {stats.maxGust} km/h
-                  </span>
-                  <span className="text-zinc-600">•</span>
-                  <span className="text-slate-300">
-                    Zachmurzenie 0–100% (tło)
-                  </span>
-                </div>
+            {/* Left aligned absolute stats */}
+            <div className="absolute top-1.5 left-1.5 z-10 flex flex-col items-start gap-1 pointer-events-none">
+              <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-300 bg-zinc-900/80 px-1.5 py-0.5 rounded-md backdrop-blur-md border border-white/10">
+                <Wind size={12} />
+                <span>Wiatr i zachmurzenie</span>
+              </div>
+              <div className="flex flex-col gap-0.5 text-[9px] text-zinc-300 bg-zinc-900/80 px-1.5 py-1 rounded-md backdrop-blur-md border border-white/10">
+                <span className="text-emerald-300 font-semibold">
+                  Porywy do: {stats.maxGust} km/h
+                </span>
+                <span className="text-slate-300">
+                  Zachmurzenie (tło)
+                </span>
               </div>
             </div>
 
@@ -1276,7 +1377,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                     height={100}
                     fill="transparent"
                     className="cursor-pointer pointer-events-auto"
-                    onClick={() => openHud(idx)}
+                    onClick={() => openOrUpdateHud(idx)}
                   />
                 ))}
 
@@ -1294,7 +1395,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   const halfWidth = 4.5;
 
                   return (
-                    <g key={`gust-${idx}`} className="cursor-pointer pointer-events-auto" onClick={() => openHud(idx)}>
+                    <g key={`gust-${idx}`} className="cursor-pointer pointer-events-auto" onClick={() => openOrUpdateHud(idx)}>
                       <line
                         x1={p.x - halfWidth}
                         y1={gustY}
@@ -1343,7 +1444,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   const wColor = getSmoothWindColor(h.windSpeed);
 
                   return (
-                    <g key={`wind-${idx}`} className="cursor-pointer pointer-events-auto" onClick={() => openHud(idx)}>
+                    <g key={`wind-${idx}`} className="cursor-pointer pointer-events-auto" onClick={() => openOrUpdateHud(idx)}>
                       {isSelected && (
                         <circle
                           cx={p.x}
@@ -1393,7 +1494,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                       key={`arrow-${idx}`}
                       transform={`translate(${p.x}, 92) rotate(${h.windDir + 180})`}
                       className="cursor-pointer pointer-events-auto"
-                      onClick={() => openHud(idx)}
+                      onClick={() => openOrUpdateHud(idx)}
                     >
                       <path
                         d="M 0 -3.5 L 2 2.5 L 0 1.2 L -2 2.5 Z"
