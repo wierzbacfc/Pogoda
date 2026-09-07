@@ -3,15 +3,16 @@
 import { HourlyData } from '@/lib/types';
 import { formatTemp, formatTime, getDateKeyFromHour } from '@/lib/utils';
 import { WeatherIcon } from '@/components/ui/WeatherIcon';
-import { Clock, Droplets } from 'lucide-react';
+import { Clock, Droplets, Maximize2 } from 'lucide-react';
 import React, { useMemo } from 'react';
 
 interface HourlyForecastProps {
   hourlyData: HourlyData;
   currentIdx: number;
+  onOpenLandscape?: () => void;
 }
 
-function HourlyForecastComponent({ hourlyData, currentIdx }: HourlyForecastProps) {
+function HourlyForecastComponent({ hourlyData, currentIdx, onOpenLandscape }: HourlyForecastProps) {
   const items = useMemo(() => {
     const arr = [];
     let currentDayStr = getDateKeyFromHour(hourlyData.time[currentIdx]);
@@ -85,7 +86,19 @@ function getSvgSpline(points: { x: number; y: number }[]): string {
           <Clock className="w-3.5 h-3.5 text-blue-400" />
           <span className="text-[10px] uppercase tracking-wider font-bold">Prognoza godzinowa</span>
         </div>
-        <span className="text-[10px] text-zinc-500 font-medium tracking-tight">Kolejne 36h</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-zinc-500 font-medium tracking-tight">Kolejne 36h</span>
+          {onOpenLandscape && (
+            <button
+              onClick={onOpenLandscape}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/15 hover:bg-blue-500/25 active:scale-95 border border-blue-400/30 text-[10px] text-blue-300 font-semibold transition-all cursor-pointer shadow-xs"
+              title="Otwórz pełny wykres szczegółowy"
+            >
+              <Maximize2 size={10} className="text-blue-400" />
+              <span>Wykres</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Horizontal Scroll Track optimized for Xiaomi 11 width */}

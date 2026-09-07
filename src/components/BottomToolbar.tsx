@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Menu } from 'lucide-react';
+import { Menu, BarChart3 } from 'lucide-react';
 import { City, WeatherResult } from '@/lib/types';
 import { CityDots } from './dashboard/CityDots';
 import { CityScrubberHUD } from './dashboard/CityScrubberHUD';
@@ -13,6 +13,7 @@ interface BottomToolbarProps {
   activeCityIndex: number;
   onSelectCity: (index: number) => void;
   onOpenCities: () => void;
+  onOpenLandscape?: () => void;
 }
 
 function BottomToolbarComponent({
@@ -22,6 +23,7 @@ function BottomToolbarComponent({
   activeCityIndex,
   onSelectCity,
   onOpenCities,
+  onOpenLandscape,
 }: BottomToolbarProps) {
   const count = cities.length > 0 ? cities.length : (cityCount || 1);
   const [isScrubbing, setIsScrubbing] = useState(false);
@@ -209,8 +211,18 @@ function BottomToolbarComponent({
             : 'border-white/15 shadow-[0_12px_36px_rgba(0,0,0,0.7),0_0_1px_rgba(255,255,255,0.2)]'
         }`}
       >
-        {/* Left spacer for symmetry */}
-        <div className="w-10 h-10 shrink-0" />
+        {/* Left: Landscape Mode / Detailed Chart Button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenLandscape?.();
+          }}
+          className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 active:scale-90 border border-white/15 flex items-center justify-center text-white transition-all shrink-0 shadow-md cursor-pointer"
+          title="Pełny wykres poziomy"
+          aria-label="Pełny wykres poziomy"
+        >
+          <BarChart3 size={18} strokeWidth={2.2} className="text-blue-300" />
+        </button>
 
         {/* Center: City Pagination Dots & Touch Scrubbing Zone */}
         <div

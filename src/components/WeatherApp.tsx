@@ -61,9 +61,35 @@ export default function WeatherApp() {
   
   const isLandscape = useLandscape();
   const [hideLandscapeChart, setHideLandscapeChart] = useState(false);
+  const [manualLandscapeOpen, setManualLandscapeOpen] = useState(false);
 
+  // When orientation changes (e.g. portrait <-> landscape), reset hide flag so tilting always activates it
   useEffect(() => {
-    if (!isLandscape) setHideLandscapeChart(false);
+    setHideLandscapeChart(false);
+  }, [isLandscape]);
+
+  const showLandscapeChart = manualLandscapeOpen || (isLandscape && !hideLandscapeChart);
+
+  const handleOpenLandscape = useCallback(() => {
+    setManualLandscapeOpen(true);
+    setHideLandscapeChart(false);
+    try {
+      if (typeof window !== 'undefined' && window.screen?.orientation && (window.screen.orientation as any).lock) {
+        (window.screen.orientation as any).lock('landscape').catch(() => {});
+      }
+    } catch (_) {}
+  }, []);
+
+  const handleCloseLandscape = useCallback(() => {
+    setManualLandscapeOpen(false);
+    if (isLandscape) {
+      setHideLandscapeChart(true);
+    }
+    try {
+      if (typeof window !== 'undefined' && window.screen?.orientation && (window.screen.orientation as any).unlock) {
+        (window.screen.orientation as any).unlock();
+      }
+    } catch (_) {}
   }, [isLandscape]);
 
   const mainRef = useRef<HTMLElement>(null);
@@ -588,12 +614,13 @@ export default function WeatherApp() {
                 weatherLoading={weatherLoading}
                 weatherError={weatherError}
                 onRefresh={handleRefreshAll}
+                onOpenLandscape={handleOpenLandscape}
               />
             ))}
           </div>
         </main>
 
-        {/* Minimalist Bottom Toolbar: Empty Left | Centered CityDots with Variant B Scrubber | Right List Button */}
+        {/* Minimalist Bottom Toolbar: Landscape Button | Centered CityDots with Scrubber | Right List Button */}
         <BottomToolbar
           cities={cities}
           weatherMap={weatherMap}
@@ -601,6 +628,7 @@ export default function WeatherApp() {
           activeCityIndex={activeCityIndex}
           onSelectCity={handleSelectCity}
           onOpenCities={() => setCitiesSheetOpen(true)}
+          onOpenLandscape={handleOpenLandscape}
         />
 
         {/* Fluid Cities Bottom Sheet with integrated search and settings button */}
@@ -641,16 +669,16 @@ export default function WeatherApp() {
           onClearCache={() => refreshAll()}
           showToast={showToast}
         />
-
-        {/* Landscape Mode Chart */}
-        {isLandscape && !hideLandscapeChart && (
-          <LandscapeChart 
-            city={activeCity} 
-            weather={activeWeather} 
-            onClose={() => setHideLandscapeChart(true)} 
-          />
-        )}
       </div>
+
+      {/* Landscape Mode Chart (Full Viewport Overlay) */}
+      {showLandscapeChart && (
+        <LandscapeChart 
+          city={activeCity} 
+          weather={activeWeather} 
+          onClose={handleCloseLandscape} 
+        />
+      )}
     </div>
   );
 }

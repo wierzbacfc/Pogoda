@@ -24,6 +24,7 @@ export interface CitySlideProps {
   weatherLoading: boolean;
   weatherError: string | null;
   onRefresh: () => void;
+  onOpenLandscape?: () => void;
 }
 
 export const CitySlide = React.memo(function CitySlide({
@@ -32,6 +33,7 @@ export const CitySlide = React.memo(function CitySlide({
   weatherLoading,
   weatherError,
   onRefresh,
+  onOpenLandscape,
 }: CitySlideProps) {
   const displayCity: City = {
     ...city,
@@ -91,6 +93,7 @@ export const CitySlide = React.memo(function CitySlide({
           <HourlyForecast
             hourlyData={weather.hourly}
             currentIdx={currentIdx}
+            onOpenLandscape={onOpenLandscape}
           />
 
           <DailyForecast
