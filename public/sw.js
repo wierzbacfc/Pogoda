@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pogoda-pwa-v12';
+const CACHE_NAME = 'pogoda-pwa-v13';
 
 const STATIC_ASSETS = [
   './',
@@ -64,6 +64,22 @@ self.addEventListener('fetch', (event) => {
     url.hostname.includes('open-meteo.com') ||
     url.hostname.includes('bigdatacloud.net')
   ) {
+    return;
+  }
+
+  // Network-first for manifest.json so PWA installation always uses the freshest configuration
+  if (url.pathname.endsWith('manifest.json')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
     return;
   }
 

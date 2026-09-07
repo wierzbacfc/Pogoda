@@ -15,6 +15,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  RotateCw,
 } from 'lucide-react';
 
 interface LandscapeChartProps {
@@ -276,6 +277,31 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
   // HUD interaction with dynamic anchor (left/right) to never cover active hour
   const [hudAnchor, setHudAnchor] = useState<'left' | 'right'>('right');
 
+  // Track if physical device viewport is in portrait mode (width < height)
+  const [isPortraitViewport, setIsPortraitViewport] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < window.innerHeight;
+  });
+  const [isForceRotated, setIsForceRotated] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleOrientationCheck = () => {
+      const portrait = window.innerWidth < window.innerHeight;
+      setIsPortraitViewport(portrait);
+      // When device physically rotates to landscape, clear manual CSS rotation
+      if (!portrait) {
+        setIsForceRotated(false);
+      }
+    };
+    window.addEventListener('resize', handleOrientationCheck);
+    window.addEventListener('orientationchange', handleOrientationCheck);
+    return () => {
+      window.removeEventListener('resize', handleOrientationCheck);
+      window.removeEventListener('orientationchange', handleOrientationCheck);
+    };
+  }, []);
+
   const openHud = useCallback((idx: number) => {
     if (autoDismissTimerRef.current) {
       clearTimeout(autoDismissTimerRef.current);
@@ -407,8 +433,23 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
       ? weather.daily.sunset.find((s) => s.startsWith(activeHour.dayKey))
       : null;
 
+  const isRotated = isPortraitViewport && isForceRotated;
+
   return (
-    <div className="fixed inset-0 z-[100] bg-zinc-950/90 backdrop-blur-2xl flex flex-col text-zinc-100 selection:bg-blue-500/30 overflow-hidden animate-in fade-in duration-200 select-none">
+    <div
+      className={`fixed inset-0 z-[100] bg-zinc-950/90 backdrop-blur-2xl flex flex-col text-zinc-100 selection:bg-blue-500/30 overflow-hidden animate-in fade-in duration-200 select-none ${
+        isRotated ? 'origin-top-left' : ''
+      }`}
+      style={
+        isRotated
+          ? {
+              width: '100vh',
+              height: '100vw',
+              transform: 'rotate(90deg) translateY(-100%)',
+            }
+          : undefined
+      }
+    >
       {/* 1. Unified Single-Line Header (~36px) */}
       <header className="h-[36px] px-3 shrink-0 flex items-center justify-between gap-2.5 border-b border-white/10 bg-zinc-950/85 backdrop-blur-xl select-none">
         {/* Left: City + GPS + Compact Metric Badges */}
@@ -501,17 +542,51 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
           </button>
         </div>
 
-        {/* Right: Close button */}
-        <button
-          onClick={onClose}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 border border-white/15 text-[11px] font-semibold text-zinc-200 hover:text-white transition-all cursor-pointer shrink-0"
-          title="Zamknij widok poziomy (Esc)"
-          aria-label="Zamknij widok poziomy"
-        >
-          <X size={13} />
-          <span className="hidden sm:inline">Zamknij</span>
-        </button>
+        {/* Right: Rotate Toggle (when in portrait) + Close button */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isPortraitViewport && (
+            <button
+              onClick={() => setIsForceRotated(!isForceRotated)}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-all cursor-pointer ${
+                isForceRotated
+                  ? 'bg-blue-500/25 text-blue-300 border-blue-400/40 ring-1 ring-blue-400/30'
+                  : 'bg-white/10 hover:bg-white/20 text-zinc-200 border-white/15 active:scale-95'
+              }`}
+              title={isForceRotated ? 'Przywróć orientację pionową' : 'Obróć wykres do poziomu (90°)'}
+              aria-label="Obróć wykres o 90 stopni"
+            >
+              <RotateCw size={11} className={isForceRotated ? 'text-blue-400 rotate-90 transition-transform' : 'text-zinc-300'} />
+              <span>{isForceRotated ? 'Pionowo' : 'Obróć 90°'}</span>
+            </button>
+          )}
+
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 border border-white/15 text-[11px] font-semibold text-zinc-200 hover:text-white transition-all cursor-pointer"
+            title="Zamknij widok poziomy (Esc)"
+            aria-label="Zamknij widok poziomy"
+          >
+            <X size={13} />
+            <span className="hidden sm:inline">Zamknij</span>
+          </button>
+        </div>
       </header>
+
+      {/* Subtle Prompt Banner when opened in portrait without 90deg rotation */}
+      {isPortraitViewport && !isForceRotated && (
+        <div className="bg-blue-950/45 border-b border-blue-400/20 px-3 py-1 flex items-center justify-between text-[11px] text-blue-200 backdrop-blur-md shrink-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <RotateCw size={12} className="text-blue-400 shrink-0" />
+            <span className="truncate">Obróć telefon poziomo lub kliknij:</span>
+          </div>
+          <button
+            onClick={() => setIsForceRotated(true)}
+            className="ml-2 px-2.5 py-0.5 rounded-full bg-blue-500/30 hover:bg-blue-500/40 border border-blue-400/40 text-blue-200 text-[10px] font-bold shrink-0 cursor-pointer active:scale-95 shadow-sm"
+          >
+            Obróć widok (90°)
+          </button>
+        </div>
+      )}
 
       {/* 3. Floating HUD Card (Overlay on user interaction - does not shift chart height) */}
       {activeHour && activeHourInfo && (

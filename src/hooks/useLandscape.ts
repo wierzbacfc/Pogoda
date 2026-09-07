@@ -8,39 +8,32 @@ export function useLandscape() {
   const checkLandscape = useCallback((): boolean => {
     if (typeof window === 'undefined') return false;
 
-    // 1. Primary check: Viewport width vs height
+    // 1. Primary check: Viewport width vs height (unambiguous physical landscape)
     const isWidthGreater = window.innerWidth > window.innerHeight;
 
-    // 2. Screen orientation API (modern mobile browsers)
+    // 2. CSS Media Query (matches standard browser landscape rendering)
+    try {
+      const mql = window.matchMedia('(orientation: landscape)');
+      if (mql.matches) return true;
+    } catch (_) {}
+
+    // 3. Screen orientation API (modern mobile browsers)
     const screenOrientation = window.screen?.orientation;
     if (screenOrientation) {
       if (typeof screenOrientation.angle === 'number') {
         const absAngle = Math.abs(screenOrientation.angle);
         if (absAngle === 90 || absAngle === 270) return true;
-        if (screenOrientation.angle === 0 || absAngle === 180) {
-          // On mobile phones in portrait, angle is 0/180.
-          if (screenOrientation.type && screenOrientation.type.startsWith('portrait')) {
-            return false;
-          }
-        }
       }
-      if (screenOrientation.type) {
-        if (screenOrientation.type.startsWith('landscape') && isWidthGreater) return true;
-        if (screenOrientation.type.startsWith('portrait') && !isWidthGreater) return false;
+      if (screenOrientation.type && screenOrientation.type.startsWith('landscape')) {
+        return true;
       }
     }
 
-    // 3. Deprecated window.orientation for older iOS / Android WebKit
+    // 4. Deprecated window.orientation for older iOS / Android WebKit
     if (typeof (window as any).orientation === 'number') {
       const winAngle = Math.abs((window as any).orientation);
       if (winAngle === 90 || winAngle === 270) return true;
     }
-
-    // 4. CSS Media Query
-    try {
-      const mql = window.matchMedia('(orientation: landscape)');
-      if (mql.matches) return true;
-    } catch (_) {}
 
     return isWidthGreater;
   }, []);
