@@ -12,15 +12,41 @@ export function useGeolocation(): {
   retry: () => void;
   cityName: string | null;
 } {
-  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>({ latitude: 52.4064, longitude: 16.9252 });
+  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(LAST_KNOWN_GPS_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed.latitude === 'number' && typeof parsed.longitude === 'number') {
+            return parsed;
+          }
+        }
+      } catch (_) {}
+    }
+    return { latitude: 52.4064, longitude: 16.9252 };
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cityName, setCityName] = useState<string | null>('Poznań');
+  const [cityName, setCityName] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('wpwa_last_known_gps_city');
+        if (cached) return cached;
+      } catch (_) {}
+    }
+    return 'Poznań';
+  });
 
   const fetchCityName = async (lat: number, lon: number) => {
     try {
       const city = await reverseGeocode(lat, lon);
       setCityName(city);
+      if (city) {
+        try {
+          localStorage.setItem('wpwa_last_known_gps_city', city);
+        } catch (_) {}
+      }
     } catch (err) {
       console.error('Failed to reverse geocode:', err);
     }

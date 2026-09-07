@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { DailyData, HourlyData } from '@/lib/types';
 import { getDayLabel, getDateKeyFromHour, isWeekendDay } from '@/lib/utils';
 import { WeatherIcon } from '@/components/ui/WeatherIcon';
@@ -14,7 +14,7 @@ interface DailyForecastProps {
   dailyStartIdx: number;
 }
 
-export function DailyForecast({ dailyData, hourlyData, currentIdx, dailyStartIdx }: DailyForecastProps) {
+function DailyForecastComponent({ dailyData, hourlyData, currentIdx, dailyStartIdx }: DailyForecastProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedDayDate, setExpandedDayDate] = useState<string | null>(null);
 
@@ -270,3 +270,5 @@ export function DailyForecast({ dailyData, hourlyData, currentIdx, dailyStartIdx
     </div>
   );
 }
+
+export const DailyForecast = memo(DailyForecastComponent);

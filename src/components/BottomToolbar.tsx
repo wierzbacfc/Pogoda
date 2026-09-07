@@ -15,7 +15,7 @@ interface BottomToolbarProps {
   onOpenCities: () => void;
 }
 
-export function BottomToolbar({
+function BottomToolbarComponent({
   cities = [],
   weatherMap,
   cityCount,
@@ -248,4 +248,6 @@ export function BottomToolbar({
     </div>
   );
 }
+
+export const BottomToolbar = React.memo(BottomToolbarComponent);
 

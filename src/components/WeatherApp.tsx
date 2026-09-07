@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { City } from '@/lib/types';
-import { getDateKeyFromHour, getDailyIndexForDate, getCurrentHourIndex, gpsDistance } from '@/lib/utils';
+import { getCurrentHourIndex, gpsDistance } from '@/lib/utils';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useWeatherData } from '@/hooks/useWeatherData';
@@ -12,16 +12,11 @@ import DynamicBackground from '@/components/DynamicBackground';
 import { BottomToolbar } from '@/components/BottomToolbar';
 import { Toast } from '@/components/ui/Toast';
 import { UpdatePrompt } from '@/components/ui/UpdatePrompt';
-import { WeatherSkeleton } from '@/components/ui/Skeleton';
-
-import { HeroSection } from '@/components/dashboard/HeroSection';
-import { HourlyForecast } from '@/components/dashboard/HourlyForecast';
-import { DailyForecast } from '@/components/dashboard/DailyForecast';
-import { DetailsGrid } from '@/components/dashboard/DetailsGrid';
+import { CitySlide } from '@/components/dashboard/CitySlide';
 
 import CitiesSheet from '@/components/cities/CitiesSheet';
 import SettingsModal from '@/components/settings/SettingsModal';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 const GPS_CITY: City = {
   id: 'gps',
@@ -60,13 +55,47 @@ export default function WeatherApp() {
   const [activeCityIndex, setActiveCityIndex] = useState(0);
   const [citiesSheetOpen, setCitiesSheetOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
-  const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
   const { toasts, showToast, dismissToast } = useToast();
 
-  // Pull to refresh & edge bounce states
+  const mainRef = useRef<HTMLElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  // Interactive horizontal city swipe refs (Direct DOM manipulation - zero React re-renders)
+  const swipeOffsetRef = useRef<number>(0);
+  const isSwipingRef = useRef<boolean>(false);
+  const isHorizontalGestureRef = useRef<boolean | null>(null);
+  const swipeStartPosRef = useRef<{ x: number; y: number; time: number }>({ x: 0, y: 0, time: 0 });
+  const dragStartRef = useRef<{ x: number; y: number; time: number; target: EventTarget | null }>({ x: 0, y: 0, time: 0, target: null });
+
+  // Synchronize track position when activeCityIndex changes
+  useEffect(() => {
+    if (trackRef.current && !isSwipingRef.current) {
+      trackRef.current.style.transform = `translate3d(${-activeCityIndex * 100}%, 0, 0)`;
+    }
+  }, [activeCityIndex]);
+
+  // Native non-passive touch listener to prevent vertical scroll jitter during horizontal swipe
+  useEffect(() => {
+    const mainEl = mainRef.current;
+    if (!mainEl) return;
+
+    const onNativeTouchMove = (e: TouchEvent) => {
+      if (isHorizontalGestureRef.current === true) {
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+      }
+    };
+
+    mainEl.addEventListener('touchmove', onNativeTouchMove, { passive: false });
+    return () => {
+      mainEl.removeEventListener('touchmove', onNativeTouchMove);
+    };
+  }, []);
+
+  // Pull to refresh states
   const [pullDistance, setPullDistance] = useState(0);
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
-  const [edgeBounce, setEdgeBounce] = useState<'left' | 'right' | null>(null);
   const pullStartRef = useRef<{ y: number; active: boolean }>({ y: 0, active: false });
 
   // GPS with instant fallback to Poznań
@@ -102,105 +131,162 @@ export default function WeatherApp() {
 
   let currentWeatherCode = 0;
   let currentIsDay = true;
-  let currentIdx = -1;
-  let dailyIdx = 0;
 
   if (activeWeather && activeWeather.hourly) {
-    currentIdx = getCurrentHourIndex(activeWeather.hourly.time, activeWeather.timezone);
-    if (currentIdx >= 0) {
-      currentWeatherCode = activeWeather.hourly.weathercode[currentIdx];
-      currentIsDay = activeWeather.hourly.is_day[currentIdx] === 1;
-      const dateKey = getDateKeyFromHour(activeWeather.hourly.time[currentIdx]);
-      dailyIdx = getDailyIndexForDate(activeWeather.daily, dateKey);
+    const curIdx = getCurrentHourIndex(activeWeather.hourly.time, activeWeather.timezone);
+    if (curIdx >= 0) {
+      currentWeatherCode = activeWeather.hourly.weathercode[curIdx];
+      currentIsDay = activeWeather.hourly.is_day[curIdx] === 1;
     }
   }
 
-  // Swipe gesture handling for touch & mouse drag
-  const dragStartRef = useRef<{ x: number; y: number; time: number; target: EventTarget | null }>({
-    x: 0,
-    y: 0,
-    time: 0,
-    target: null,
-  });
+  // Stable onRefresh callback for CitySlide memoization
+  const handleRefreshAll = useCallback(() => {
+    refreshAll();
+  }, [refreshAll]);
 
-  const handleDragStart = useCallback((clientX: number, clientY: number, target: EventTarget | null) => {
-    dragStartRef.current = {
-      x: clientX,
-      y: clientY,
-      time: Date.now(),
-      target,
-    };
-  }, []);
-
-  const handleDragEnd = useCallback((clientX: number, clientY: number) => {
-    const target = dragStartRef.current.target as HTMLElement | null;
-    // Don't trigger city swipe if user is interacting with horizontal scroll (e.g. hourly forecast)
-    if (target && target.closest('[data-no-swipe="true"]')) {
-      return;
-    }
-
-    const deltaX = dragStartRef.current.x - clientX;
-    const deltaY = dragStartRef.current.y - clientY;
-    const timeElapsed = Date.now() - dragStartRef.current.time;
-    const absX = Math.abs(deltaX);
-    const absY = Math.abs(deltaY);
-    const velocity = absX / Math.max(1, timeElapsed);
-
-    // Fluid horizontal swipe detection:
-    const isHorizontalSwipe = absX > 35 && absX > absY * 1.2;
-    const isFlick = absX > 25 && velocity > 0.35 && absX > absY;
-
-    if (isHorizontalSwipe || isFlick) {
-      if (deltaX > 0) {
-        // Swiped Left -> Next City
-        if (activeCityIndex < cities.length - 1) {
-          setSlideDirection('right');
-          setActiveCityIndex(prev => prev + 1);
-        } else {
-          setEdgeBounce('right');
-          setTimeout(() => setEdgeBounce(null), 250);
-        }
-      } else {
-        // Swiped Right -> Previous City
-        if (activeCityIndex > 0) {
-          setSlideDirection('left');
-          setActiveCityIndex(prev => prev - 1);
-        } else {
-          setEdgeBounce('left');
-          setTimeout(() => setEdgeBounce(null), 250);
-        }
-      }
-    }
-  }, [activeCityIndex, cities.length]);
-
-  // Pull-To-Refresh Touch Handlers
+  // Swipe & Touch Gesture Engine with interactive horizontal tracking (Direct DOM)
   const handleTouchStart = (e: React.TouchEvent) => {
-    handleDragStart(e.touches[0].clientX, e.touches[0].clientY, e.target);
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    swipeStartPosRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+    dragStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now(), target: e.target };
+    isHorizontalGestureRef.current = null;
+    swipeOffsetRef.current = 0;
+    isSwipingRef.current = false;
+
     if (typeof window !== 'undefined' && window.scrollY <= 2) {
-      pullStartRef.current = { y: e.touches[0].clientY, active: true };
+      pullStartRef.current = { y: touch.clientY, active: true };
     } else {
       pullStartRef.current.active = false;
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!pullStartRef.current.active || isPullRefreshing) return;
-    const currentY = e.touches[0].clientY;
-    const diffY = currentY - pullStartRef.current.y;
-    if (diffY > 0 && typeof window !== 'undefined' && window.scrollY <= 2) {
-      const damped = Math.min(85, Math.pow(diffY, 0.82));
-      setPullDistance(damped);
-    } else {
-      setPullDistance(0);
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - swipeStartPosRef.current.x;
+    const dy = touch.clientY - swipeStartPosRef.current.y;
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+
+    const target = dragStartRef.current.target as HTMLElement | null;
+    const isNoSwipe = !!(target && target.closest('[data-no-swipe="true"]'));
+
+    // Determine gesture intent once moved past 8px
+    if (isHorizontalGestureRef.current === null && (absX > 8 || absY > 8)) {
+      if (absX > absY * 1.15 && !isNoSwipe && cities.length > 1) {
+        isHorizontalGestureRef.current = true;
+        isSwipingRef.current = true;
+        pullStartRef.current.active = false;
+        if (trackRef.current) {
+          trackRef.current.classList.add('pointer-events-none');
+        }
+      } else {
+        isHorizontalGestureRef.current = false;
+      }
+    }
+
+    // 1. Horizontal City Swipe Mode (Direct DOM manipulation - zero React re-renders)
+    if (isHorizontalGestureRef.current === true) {
+      if (e.cancelable) {
+        try {
+          e.preventDefault();
+        } catch (_) {}
+      }
+
+      // Elastic rubber-band resistance when dragging beyond list boundaries
+      let offset = dx;
+      if (activeCityIndex === 0 && dx > 0) {
+        offset = dx * 0.25;
+      } else if (activeCityIndex === cities.length - 1 && dx < 0) {
+        offset = dx * 0.25;
+      }
+
+      swipeOffsetRef.current = offset;
+
+      // Direct GPU transform update on DOM node
+      if (trackRef.current) {
+        trackRef.current.style.transition = 'none';
+        trackRef.current.style.transform = `translate3d(calc(${-activeCityIndex * 100}% + ${offset}px), 0, 0)`;
+      }
+      return;
+    }
+
+    // 2. Vertical Pull-To-Refresh Mode
+    if (pullStartRef.current.active && !isPullRefreshing && isHorizontalGestureRef.current === false) {
+      const diffY = touch.clientY - pullStartRef.current.y;
+      if (diffY > 0 && typeof window !== 'undefined' && window.scrollY <= 2) {
+        const damped = Math.min(85, Math.pow(diffY, 0.82));
+        setPullDistance(damped);
+      } else {
+        setPullDistance(0);
+      }
     }
   };
 
-  const handleTouchEnd = async (e: React.TouchEvent) => {
-    handleDragEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+  const handleTouchEnd = async () => {
+    const finalOffset = swipeOffsetRef.current;
+    const elapsed = Math.max(1, Date.now() - swipeStartPosRef.current.time);
+    const velocity = Math.abs(finalOffset) / elapsed;
+
+    if (isSwipingRef.current) {
+      isSwipingRef.current = false;
+      if (trackRef.current) {
+        trackRef.current.classList.remove('pointer-events-none');
+      }
+
+      const swipeThreshold = 40;
+      const isFlick = velocity > 0.28 && Math.abs(finalOffset) > 20;
+
+      if ((finalOffset < -swipeThreshold || (finalOffset < 0 && isFlick)) && activeCityIndex < cities.length - 1) {
+        // Swiped Left -> Advance to next city
+        const nextIdx = activeCityIndex + 1;
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          try { navigator.vibrate(12); } catch (_) {}
+        }
+        if (trackRef.current) {
+          trackRef.current.style.transition = 'transform 320ms cubic-bezier(0.25, 1, 0.5, 1)';
+          trackRef.current.style.transform = `translate3d(${-nextIdx * 100}%, 0, 0)`;
+        }
+        swipeOffsetRef.current = 0;
+        setActiveCityIndex(nextIdx);
+        if (typeof window !== 'undefined' && window.scrollY > 40) {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        return;
+      } else if ((finalOffset > swipeThreshold || (finalOffset > 0 && isFlick)) && activeCityIndex > 0) {
+        // Swiped Right -> Go to previous city
+        const prevIdx = activeCityIndex - 1;
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          try { navigator.vibrate(12); } catch (_) {}
+        }
+        if (trackRef.current) {
+          trackRef.current.style.transition = 'transform 320ms cubic-bezier(0.25, 1, 0.5, 1)';
+          trackRef.current.style.transform = `translate3d(${-prevIdx * 100}%, 0, 0)`;
+        }
+        swipeOffsetRef.current = 0;
+        setActiveCityIndex(prevIdx);
+        if (typeof window !== 'undefined' && window.scrollY > 40) {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        return;
+      }
+
+      // Spring back smoothly if threshold wasn't reached or boundary bounce
+      if (trackRef.current) {
+        trackRef.current.style.transition = 'transform 260ms cubic-bezier(0.25, 1, 0.5, 1)';
+        trackRef.current.style.transform = `translate3d(${-activeCityIndex * 100}%, 0, 0)`;
+      }
+      swipeOffsetRef.current = 0;
+      return;
+    }
+
+    // Handle pull-to-refresh trigger
     if (pullDistance > 55 && !isPullRefreshing) {
       setIsPullRefreshing(true);
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(20);
+        try { navigator.vibrate(20); } catch (_) {}
       }
       try {
         await refreshAll();
@@ -219,11 +305,110 @@ export default function WeatherApp() {
     pullStartRef.current.active = false;
   };
 
+  // Pointer events for desktop testing and mouse drag
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'touch' || e.button !== 0) return;
+    const target = e.target as HTMLElement | null;
+    if (target && target.closest('[data-no-swipe="true"]')) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startTime = Date.now();
+    let isHorizontal: boolean | null = null;
+    let swiping = false;
+
+    const onPointerMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+
+      if (isHorizontal === null && (Math.abs(dx) > 7 || Math.abs(dy) > 7)) {
+        if (Math.abs(dx) > Math.abs(dy) * 1.15 && cities.length > 1) {
+          isHorizontal = true;
+          swiping = true;
+          isSwipingRef.current = true;
+          if (trackRef.current) {
+            trackRef.current.classList.add('pointer-events-none');
+          }
+        } else {
+          isHorizontal = false;
+        }
+      }
+
+      if (isHorizontal) {
+        let offset = dx;
+        if (activeCityIndex === 0 && dx > 0) offset = dx * 0.28;
+        else if (activeCityIndex === cities.length - 1 && dx < 0) offset = dx * 0.28;
+        swipeOffsetRef.current = offset;
+
+        if (trackRef.current) {
+          trackRef.current.style.transition = 'none';
+          trackRef.current.style.transform = `translate3d(calc(${-activeCityIndex * 100}% + ${offset}px), 0, 0)`;
+        }
+      }
+    };
+
+    const onPointerUp = () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+
+      if (swiping) {
+        isSwipingRef.current = false;
+        if (trackRef.current) {
+          trackRef.current.classList.remove('pointer-events-none');
+        }
+        const finalOffset = swipeOffsetRef.current;
+        const elapsed = Math.max(1, Date.now() - startTime);
+        const velocity = Math.abs(finalOffset) / elapsed;
+        const isFlick = velocity > 0.28 && Math.abs(finalOffset) > 20;
+
+        if ((finalOffset < -40 || (finalOffset < 0 && isFlick)) && activeCityIndex < cities.length - 1) {
+          const nextIdx = activeCityIndex + 1;
+          if (trackRef.current) {
+            trackRef.current.style.transition = 'transform 320ms cubic-bezier(0.25, 1, 0.5, 1)';
+            trackRef.current.style.transform = `translate3d(${-nextIdx * 100}%, 0, 0)`;
+          }
+          swipeOffsetRef.current = 0;
+          setActiveCityIndex(nextIdx);
+          if (typeof window !== 'undefined' && window.scrollY > 40) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        } else if ((finalOffset > 40 || (finalOffset > 0 && isFlick)) && activeCityIndex > 0) {
+          const prevIdx = activeCityIndex - 1;
+          if (trackRef.current) {
+            trackRef.current.style.transition = 'transform 320ms cubic-bezier(0.25, 1, 0.5, 1)';
+            trackRef.current.style.transform = `translate3d(${-prevIdx * 100}%, 0, 0)`;
+          }
+          swipeOffsetRef.current = 0;
+          setActiveCityIndex(prevIdx);
+          if (typeof window !== 'undefined' && window.scrollY > 40) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        } else {
+          if (trackRef.current) {
+            trackRef.current.style.transition = 'transform 260ms cubic-bezier(0.25, 1, 0.5, 1)';
+            trackRef.current.style.transform = `translate3d(${-activeCityIndex * 100}%, 0, 0)`;
+          }
+          swipeOffsetRef.current = 0;
+        }
+      }
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  };
+
   // City selection & management
   const handleSelectCity = useCallback((index: number) => {
     if (index !== activeCityIndex) {
-      setSlideDirection(index > activeCityIndex ? 'right' : 'left');
+      if (trackRef.current) {
+        trackRef.current.style.transition = 'transform 320ms cubic-bezier(0.25, 1, 0.5, 1)';
+        trackRef.current.style.transform = `translate3d(${-index * 100}%, 0, 0)`;
+      }
+      swipeOffsetRef.current = 0;
       setActiveCityIndex(index);
+      if (typeof window !== 'undefined' && window.scrollY > 40) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     }
   }, [activeCityIndex]);
 
@@ -259,26 +444,9 @@ export default function WeatherApp() {
       const list = prev || [];
       return [...list, { ...newCity, isGps: false, order: list.length + 1 }];
     });
-    setSlideDirection('right');
     fetchForCity(newCity);
     showToast(`Dodano ${newCity.name}`, 'success');
   }, [cities, setSavedCities, fetchForCity, showToast]);
-
-  // Display name for GPS city
-  const getDisplayName = (city: City): string => {
-    if (city.isGps && city.subtitle) {
-      if (city.subtitle === 'Brak uprawnień GPS') return 'Poznań (GPS niedostępny)';
-      return city.subtitle.includes(',') ? city.subtitle.split(',')[0].trim() : city.subtitle;
-    }
-    return city.name;
-  };
-
-  const displayCity: City = {
-    ...activeCity,
-    name: getDisplayName(activeCity),
-  };
-
-  const hasWeather = !!(activeWeather && activeWeather.hourly && currentIdx >= 0);
 
   return (
     <div className="min-h-screen w-full bg-zinc-950 flex justify-center text-zinc-100 font-sans selection:bg-blue-500/30">
@@ -312,93 +480,33 @@ export default function WeatherApp() {
         {/* Toast notifications */}
         <Toast toasts={toasts} onDismiss={dismissToast} />
 
-        {/* Main Weather Screen (100% full-bleed and primary) */}
+        {/* Main Weather Screen Track (Horizontal City Pager) */}
         <main
-          className="relative z-10 pb-28 flex-1 touch-pan-y select-none"
+          ref={mainRef}
+          className="relative z-10 pb-28 flex-1 overflow-x-hidden select-none touch-pan-y"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          onMouseDown={(e) => handleDragStart(e.clientX, e.clientY, e.target)}
-          onMouseUp={(e) => handleDragEnd(e.clientX, e.clientY)}
+          onPointerDown={handlePointerDown}
         >
           <div
-            className="px-3.5 pt-7 pb-4 flex flex-col gap-3.5 transition-transform duration-250 ease-out"
+            ref={trackRef}
+            className="flex w-full flex-nowrap items-start will-change-transform"
             style={{
-              transform: edgeBounce === 'right' ? 'translateX(-12px)' : edgeBounce === 'left' ? 'translateX(12px)' : undefined,
+              transform: `translate3d(${-activeCityIndex * 100}%, 0, 0)`,
+              transition: 'transform 320ms cubic-bezier(0.25, 1, 0.5, 1)',
             }}
           >
-            {!hasWeather ? (
-              weatherError && !weatherLoading ? (
-                <div className="bg-zinc-900/60 backdrop-blur-xl border border-red-500/20 rounded-3xl p-6 text-center flex flex-col items-center gap-4 mt-12 shadow-2xl">
-                  <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
-                    <AlertCircle size={24} />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-white mb-1">Brak połączenia z siecią</h3>
-                    <p className="text-xs text-zinc-400">Nie udało się pobrać aktualnej pogody. Sprawdź połączenie z internetem.</p>
-                  </div>
-                  <button
-                    onClick={() => refreshAll()}
-                    className="px-5 py-2.5 rounded-xl bg-blue-600/30 hover:bg-blue-600/40 active:scale-95 border border-blue-500/30 text-blue-300 text-xs font-semibold flex items-center gap-2 transition-all"
-                  >
-                    <RefreshCw size={14} />
-                    <span>Spróbuj ponownie</span>
-                  </button>
-                </div>
-              ) : (
-                <WeatherSkeleton />
-              )
-            ) : (
-              <div
-                key={activeCity.id}
-                className={
-                  slideDirection === 'right'
-                    ? 'animate-slide-from-right flex flex-col gap-3.5'
-                    : slideDirection === 'left'
-                    ? 'animate-slide-from-left flex flex-col gap-3.5'
-                    : 'flex flex-col gap-3.5'
-                }
-              >
-                <HeroSection
-                  city={displayCity}
-                  hourlyData={activeWeather.hourly}
-                  dailyData={activeWeather.daily}
-                  currentIdx={currentIdx}
-                  dailyIdx={dailyIdx}
-                  lastUpdated={activeWeather.meta?.fetchedAt}
-                  onRefresh={() => refreshAll()}
-                  isRefreshing={weatherLoading}
-                  airQuality={activeWeather.airQuality}
-                />
-
-                <HourlyForecast
-                  hourlyData={activeWeather.hourly}
-                  currentIdx={currentIdx}
-                />
-
-                <DailyForecast
-                  dailyData={activeWeather.daily}
-                  hourlyData={activeWeather.hourly}
-                  currentIdx={currentIdx}
-                  dailyStartIdx={dailyIdx}
-                />
-
-                <DetailsGrid
-                  hourlyData={activeWeather.hourly}
-                  dailyData={activeWeather.daily}
-                  currentIdx={currentIdx}
-                  dailyIdx={dailyIdx}
-                  airQuality={activeWeather.airQuality}
-                />
-
-                {/* Cache info */}
-                {activeWeather.meta?.isFallback && (
-                  <div className="text-center text-[10px] text-zinc-500 py-1 font-medium tracking-wider uppercase">
-                    Dane z pamięci podręcznej (offline)
-                  </div>
-                )}
-              </div>
-            )}
+            {cities.map((city) => (
+              <CitySlide
+                key={city.id}
+                city={city}
+                weather={weatherMap.get(city.id)}
+                weatherLoading={weatherLoading}
+                weatherError={weatherError}
+                onRefresh={handleRefreshAll}
+              />
+            ))}
           </div>
         </main>
 

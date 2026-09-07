@@ -122,6 +122,17 @@ export function useBottomSheetGestures({
     }
   }, []);
 
+  // Smooth programmatic close with 280ms Apple cubic-bezier transition
+  const triggerClose = useCallback((callback?: () => void) => {
+    if (isClosing) return;
+    setIsClosing(true);
+    setDragOffset(window.innerHeight || 800);
+    setTimeout(() => {
+      callback?.();
+      onClose();
+    }, 280);
+  }, [isClosing, onClose]);
+
   const handleTouchEnd = useCallback(() => {
     if (!isDraggingRef.current) return;
 
@@ -134,17 +145,13 @@ export function useBottomSheetGestures({
 
     // If dragged past threshold OR flicked downwards with velocity
     if (deltaY > threshold || (velocity > 0.35 && deltaY > 25)) {
-      setIsClosing(true);
-      setDragOffset(window.innerHeight);
-      setTimeout(() => {
-        onClose();
-      }, 220);
+      triggerClose();
     } else {
       // Spring back to 0
       setDragOffset(0);
       currentOffsetRef.current = 0;
     }
-  }, [threshold, onClose]);
+  }, [threshold, triggerClose]);
 
   // Pointer events for mouse / preview drag support on the drag handle
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
@@ -181,11 +188,7 @@ export function useBottomSheetGestures({
       window.removeEventListener('pointerup', onPointerUp);
 
       if (dY > threshold || (vel > 0.35 && dY > 25)) {
-        setIsClosing(true);
-        setDragOffset(window.innerHeight);
-        setTimeout(() => {
-          onClose();
-        }, 220);
+        triggerClose();
       } else {
         setDragOffset(0);
         currentOffsetRef.current = 0;
@@ -194,21 +197,26 @@ export function useBottomSheetGestures({
 
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
-  }, [threshold, onClose]);
+  }, [threshold, triggerClose]);
 
-  // Derived styling for sheet container
+  // Derived styling for sheet container with GPU-accelerated translate3d
   const sheetStyle: React.CSSProperties = {
     transform: isClosing
-      ? `translateY(100%)`
+      ? 'translate3d(0, 100%, 0)'
       : dragOffset !== 0
-      ? `translateY(${Math.max(0, dragOffset)}px)`
-      : undefined,
-    transition: isDragging ? 'none' : 'transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+      ? `translate3d(0, ${Math.max(0, dragOffset)}px, 0)`
+      : 'translate3d(0, 0, 0)',
+    transition: isDragging
+      ? 'none'
+      : 'transform 280ms cubic-bezier(0.32, 0.72, 0, 1)',
+    willChange: 'transform',
     touchAction: 'pan-y',
   };
 
-  // Derived backdrop opacity based on drag
-  const backdropOpacity = isDragging && dragOffset > 0
+  // Derived backdrop opacity based on drag & closing
+  const backdropOpacity = isClosing
+    ? 0
+    : isDragging && dragOffset > 0
     ? Math.max(0, 1 - dragOffset / 350)
     : 1;
 
@@ -216,6 +224,7 @@ export function useBottomSheetGestures({
     dragOffset,
     isDragging,
     isClosing,
+    triggerClose,
     sheetStyle,
     backdropOpacity,
     dragHandlers: {

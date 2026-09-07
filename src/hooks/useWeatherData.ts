@@ -7,9 +7,50 @@ import type { City, WeatherResult } from '@/lib/types';
 
 const CACHE_TTL = 600_000; // 10 minutes
 
+function loadInitialWeatherCache(cities: City[]): Map<string | number, WeatherResult> {
+  const map = new Map<string | number, WeatherResult>();
+  if (typeof window === 'undefined') return map;
+
+  try {
+    for (const city of cities) {
+      if (city.latitude === null || city.longitude === null) continue;
+      const cacheKey = `wpwa_weather_${city.id}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.data && parsed.data.hourly?.time?.length > 0) {
+          map.set(city.id, {
+            hourly: parsed.data.hourly,
+            daily: parsed.data.daily,
+            timezone: parsed.data.timezone,
+            utc_offset_seconds: parsed.data.utc_offset_seconds,
+            airQuality: parsed.airQuality || undefined,
+            meta: {
+              fetchedAt: parsed.timestamp || Date.now(),
+              fromCache: true,
+              lat: city.latitude,
+              lon: city.longitude,
+            },
+          });
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Initial cache load error:', e);
+  }
+
+  return map;
+}
+
 export function useWeatherData(cities: City[], gpsCoordsReady: boolean) {
-  const [weatherMap, setWeatherMap] = useState<Map<string | number, WeatherResult>>(new Map());
-  const [loading, setLoading] = useState(true);
+  const [weatherMap, setWeatherMap] = useState<Map<string | number, WeatherResult>>(() =>
+    loadInitialWeatherCache(cities)
+  );
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    const initialCache = loadInitialWeatherCache(cities);
+    return initialCache.size === 0;
+  });
   const [fetchError, setFetchError] = useState<string | null>(null);
   const lastRefreshTimeRef = useRef<number>(0);
   const isFetchingRef = useRef(false);
@@ -133,6 +174,44 @@ export function useWeatherData(cities: City[], gpsCoordsReady: boolean) {
 
   // Stable dependency key
   const citiesKey = cities.map(c => `${c.id}:${c.latitude}:${c.longitude}`).join('|');
+
+  // Immediately hydrate any unpopulated city from cache when cities change
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setWeatherMap(prev => {
+      const nextMap = new Map(prev);
+      let changed = false;
+      for (const city of cities) {
+        if (city.latitude === null || city.longitude === null) continue;
+        if (!nextMap.has(city.id)) {
+          const cacheKey = `wpwa_weather_${city.id}`;
+          const cached = localStorage.getItem(cacheKey);
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              if (parsed.data?.hourly?.time?.length > 0) {
+                nextMap.set(city.id, {
+                  hourly: parsed.data.hourly,
+                  daily: parsed.data.daily,
+                  timezone: parsed.data.timezone,
+                  utc_offset_seconds: parsed.data.utc_offset_seconds,
+                  airQuality: parsed.airQuality || undefined,
+                  meta: {
+                    fetchedAt: parsed.timestamp || Date.now(),
+                    fromCache: true,
+                    lat: city.latitude,
+                    lon: city.longitude,
+                  },
+                });
+                changed = true;
+              }
+            } catch (_) {}
+          }
+        }
+      }
+      return changed ? nextMap : prev;
+    });
+  }, [cities]);
 
   useEffect(() => {
     if (!gpsCoordsReady) return;

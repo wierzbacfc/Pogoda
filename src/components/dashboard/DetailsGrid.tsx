@@ -28,7 +28,7 @@ interface DetailsGridProps {
   airQuality?: AirQualityData;
 }
 
-export function DetailsGrid({ hourlyData, dailyData, currentIdx, dailyIdx }: DetailsGridProps) {
+function DetailsGridComponent({ hourlyData, dailyData, currentIdx, dailyIdx }: DetailsGridProps) {
   const [selectedMetric, setSelectedMetric] = useState<MetricType | null>(null);
   const bubbleRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -536,3 +536,5 @@ export function DetailsGrid({ hourlyData, dailyData, currentIdx, dailyIdx }: Det
     </div>
   );
 }
+
+export const DetailsGrid = React.memo(DetailsGridComponent);

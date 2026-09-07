@@ -280,3 +280,15 @@ div[data-next-dev-tools] {
   opacity: 0 !important;
 }
 
+/* Mobile GPU performance optimization:
+   On mobile screens (max-width: 768px, e.g. Xiaomi 11), clamp heavy backdrop-blur (24-40px)
+   down to hardware-efficient 12px blur. This prevents GPU framebuffer fill-rate saturation
+   and delivers native 120 FPS swiping while retaining rich glass aesthetics. */
+@media (max-width: 768px) {
+  .backdrop-blur-2xl,
+  .backdrop-blur-xl {
+    -webkit-backdrop-filter: blur(12px) !important;
+    backdrop-filter: blur(12px) !important;
+  }
+}
+

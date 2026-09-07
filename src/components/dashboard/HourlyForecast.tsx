@@ -11,7 +11,7 @@ interface HourlyForecastProps {
   currentIdx: number;
 }
 
-export function HourlyForecast({ hourlyData, currentIdx }: HourlyForecastProps) {
+function HourlyForecastComponent({ hourlyData, currentIdx }: HourlyForecastProps) {
   const items = useMemo(() => {
     const arr = [];
     let currentDayStr = getDateKeyFromHour(hourlyData.time[currentIdx]);
@@ -325,3 +325,5 @@ function getSvgSpline(points: { x: number; y: number }[]): string {
     </div>
   );
 }
+
+export const HourlyForecast = React.memo(HourlyForecastComponent);

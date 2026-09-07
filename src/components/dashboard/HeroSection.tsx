@@ -19,7 +19,7 @@ interface HeroSectionProps {
   airQuality?: AirQualityData;
 }
 
-export function HeroSection({
+function HeroSectionComponent({
   city,
   hourlyData,
   dailyData,
@@ -569,3 +569,5 @@ export function HeroSection({
     </div>
   );
 }
+
+export const HeroSection = React.memo(HeroSectionComponent);

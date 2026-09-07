@@ -39,10 +39,13 @@ export default function CitiesSheet({
   const [searchResults, setSearchResults] = useState<GeocodingResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState(false);
+  const [mountedInDom, setMountedInDom] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const {
     isDragging,
+    isClosing,
+    triggerClose,
     sheetStyle,
     backdropOpacity,
     dragHandlers,
@@ -59,7 +62,12 @@ export default function CitiesSheet({
       document.body.style.overflow = 'hidden';
       setQuery('');
       setSearchResults([]);
+      const raf = requestAnimationFrame(() => {
+        setMountedInDom(true);
+      });
+      return () => cancelAnimationFrame(raf);
     } else {
+      setMountedInDom(false);
       document.body.style.overflow = 'unset';
     }
     return () => {
@@ -128,28 +136,35 @@ export default function CitiesSheet({
 
   if (!isOpen) return null;
 
+  const effectiveSheetStyle: React.CSSProperties = {
+    ...sheetStyle,
+    transform: (!mountedInDom && !isDragging) || isClosing
+      ? 'translate3d(0, 100%, 0)'
+      : sheetStyle.transform,
+  };
+
+  const effectiveBackdropOpacity = !mountedInDom ? 0 : backdropOpacity;
+
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end pointer-events-auto">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end pointer-events-auto overflow-hidden">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 animate-in fade-in"
-        onClick={onClose}
-        style={{ opacity: backdropOpacity }}
+        className="fixed inset-0 bg-black/65 backdrop-blur-xs transition-opacity duration-280"
+        onClick={() => triggerClose()}
+        style={{ opacity: effectiveBackdropOpacity }}
       />
 
       {/* Sheet Container */}
       <div 
         {...dragHandlers}
-        style={sheetStyle}
-        className={`relative z-10 w-full max-w-[420px] mx-auto max-h-[88vh] bg-zinc-900/95 backdrop-blur-2xl border-t border-white/15 rounded-t-[32px] pt-2 pb-5 px-4 shadow-[0_-12px_40px_rgba(0,0,0,0.8)] flex flex-col gap-3 ${
-          isDragging ? '' : 'animate-in slide-in-from-bottom duration-300'
-        }`}
+        style={effectiveSheetStyle}
+        className="relative z-10 w-full max-w-[420px] mx-auto max-h-[88vh] bg-zinc-900/95 backdrop-blur-xl border-t border-white/15 rounded-t-[32px] pt-2 pb-5 px-4 shadow-[0_-12px_40px_rgba(0,0,0,0.8)] flex flex-col gap-3 will-change-transform select-none"
       >
         {/* Drag Handle with generous touch target */}
         <div 
           className="w-24 py-2 mx-auto cursor-grab active:cursor-grabbing flex items-center justify-center touch-none select-none -mt-0.5" 
           onPointerDown={handlePointerDown}
-          onClick={onClose}
+          onClick={() => triggerClose()}
           title="Przeciągnij w dół, aby zamknąć"
         >
           <div className="w-12 h-1.5 rounded-full bg-zinc-500/80 hover:bg-zinc-400 transition-colors" />
@@ -211,8 +226,7 @@ export default function CitiesSheet({
                   isActive={index === activeCityIndex}
                   index={index}
                   onSelect={(idx) => {
-                    onSelectCity(idx);
-                    onClose();
+                    triggerClose(() => onSelectCity(idx));
                   }}
                   onDelete={onDeleteCity}
                   onRetryGps={onRetryGps}
@@ -260,7 +274,7 @@ export default function CitiesSheet({
 
           {/* Close Button */}
           <button
-            onClick={onClose}
+            onClick={() => triggerClose()}
             className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 active:scale-95 transition-all shrink-0"
             title="Zamknij"
             aria-label="Zamknij"

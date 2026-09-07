@@ -55,7 +55,7 @@ interface SunMote {
   delay: number;
 }
 
-export default function DynamicBackground({ weatherCode, isDay }: DynamicBackgroundProps) {
+function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundProps) {
   const gradient = getBgGradient(weatherCode, isDay);
   const effectType = getWeatherEffectType(weatherCode, isDay);
 
@@ -132,7 +132,11 @@ export default function DynamicBackground({ weatherCode, isDay }: DynamicBackgro
   return (
     <div
       className="fixed inset-0 pointer-events-none overflow-hidden transition-all duration-1000 z-0"
-      style={{ background: gradient }}
+      style={{
+        background: gradient,
+        contain: 'strict',
+        transform: 'translateZ(0)',
+      }}
     >
       {/* Soft atmospheric vignette - keeps status bar and bottom legible while letting vivid colors radiate */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-transparent to-black/35 pointer-events-none" />
@@ -142,7 +146,7 @@ export default function DynamicBackground({ weatherCode, isDay }: DynamicBackgro
         <>
           {/* Intense solar corona & golden glow */}
           <div
-            className="absolute -top-20 -right-20 w-96 h-96 rounded-full bg-amber-400/40 blur-3xl pointer-events-none"
+            className="absolute -top-20 -right-20 w-96 h-96 rounded-full bg-amber-400/40 blur-2xl pointer-events-none"
             style={{ animation: 'sun-ray-pulse 6s ease-in-out infinite' }}
           />
           <div
@@ -150,11 +154,11 @@ export default function DynamicBackground({ weatherCode, isDay }: DynamicBackgro
             style={{ animation: 'sun-ray-pulse 4.5s ease-in-out 1s infinite reverse' }}
           />
           <div
-            className="absolute top-40 right-20 w-72 h-72 rounded-full bg-orange-400/15 blur-3xl pointer-events-none"
+            className="absolute top-40 right-20 w-72 h-72 rounded-full bg-orange-400/15 blur-2xl pointer-events-none"
             style={{ animation: 'sun-ray-pulse 8s ease-in-out 2s infinite' }}
           />
           {/* Ambient warm light wash behind the cards */}
-          <div className="absolute top-[40%] left-[-10%] w-[120%] h-80 rounded-full bg-blue-400/15 blur-3xl pointer-events-none" />
+          <div className="absolute top-[40%] left-[-10%] w-[120%] h-80 rounded-full bg-blue-400/15 blur-2xl pointer-events-none" />
 
           {/* Golden luminous sun motes */}
           {sunMotes.map((m) => (
@@ -178,10 +182,10 @@ export default function DynamicBackground({ weatherCode, isDay }: DynamicBackgro
         <>
           {/* Warm sunburst shining behind clouds */}
           <div
-            className="absolute -top-16 -right-16 w-80 h-80 rounded-full bg-amber-400/30 blur-3xl pointer-events-none"
+            className="absolute -top-16 -right-16 w-80 h-80 rounded-full bg-amber-400/30 blur-2xl pointer-events-none"
             style={{ animation: 'sun-ray-pulse 8s ease-in-out infinite' }}
           />
-          <div className="absolute top-[35%] right-[-10%] w-72 h-72 rounded-full bg-sky-400/20 blur-3xl pointer-events-none" />
+          <div className="absolute top-[35%] right-[-10%] w-72 h-72 rounded-full bg-sky-400/20 blur-2xl pointer-events-none" />
         </>
       )}
 
@@ -189,15 +193,15 @@ export default function DynamicBackground({ weatherCode, isDay }: DynamicBackgro
       {hasClouds && (
         <>
           <div
-            className="absolute top-8 -left-24 w-[120%] h-56 rounded-full bg-white/[0.08] blur-3xl pointer-events-none"
+            className="absolute top-8 -left-24 w-[120%] h-56 rounded-full bg-white/[0.08] blur-2xl pointer-events-none"
             style={{ animation: 'cloud-drift-horizontal 22s ease-in-out infinite' }}
           />
           <div
-            className="absolute top-36 -right-20 w-[110%] h-52 rounded-full bg-blue-200/[0.06] blur-3xl pointer-events-none"
+            className="absolute top-36 -right-20 w-[110%] h-52 rounded-full bg-blue-200/[0.06] blur-2xl pointer-events-none"
             style={{ animation: 'cloud-drift-slow 28s ease-in-out 2s infinite' }}
           />
           <div
-            className="absolute top-72 -left-16 w-96 h-48 rounded-full bg-slate-300/[0.04] blur-3xl pointer-events-none"
+            className="absolute top-72 -left-16 w-96 h-48 rounded-full bg-slate-300/[0.04] blur-2xl pointer-events-none"
             style={{ animation: 'cloud-drift-horizontal 34s ease-in-out 5s infinite reverse' }}
           />
         </>
@@ -207,8 +211,8 @@ export default function DynamicBackground({ weatherCode, isDay }: DynamicBackgro
       {(effectType === 'starry' || effectType === 'partly-night') && (
         <>
           {/* Cosmic Aurora / Nebula glow behind cards */}
-          <div className="absolute top-[20%] right-[-10%] w-80 h-80 rounded-full bg-indigo-500/20 blur-3xl pointer-events-none" />
-          <div className="absolute top-[50%] left-[-15%] w-96 h-96 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
+          <div className="absolute top-[20%] right-[-10%] w-80 h-80 rounded-full bg-indigo-500/20 blur-2xl pointer-events-none" />
+          <div className="absolute top-[50%] left-[-15%] w-96 h-96 rounded-full bg-blue-600/15 blur-2xl pointer-events-none" />
 
           {/* Twinkling star field */}
           {starParticles.map((p) => (
@@ -242,7 +246,7 @@ export default function DynamicBackground({ weatherCode, isDay }: DynamicBackgro
       {/* ================= 5. DRIZZLE ================= */}
       {effectType === 'drizzle' && (
         <>
-          <div className="absolute top-[25%] inset-x-0 h-64 bg-cyan-400/10 blur-3xl pointer-events-none" />
+          <div className="absolute top-[25%] inset-x-0 h-64 bg-cyan-400/10 blur-2xl pointer-events-none" />
           {drizzleParticles.map((p) => (
             <div
               key={p.id}
@@ -262,7 +266,7 @@ export default function DynamicBackground({ weatherCode, isDay }: DynamicBackgro
       {(effectType === 'rain' || effectType === 'storm') && (
         <>
           {/* Deep oceanic backlight glow */}
-          <div className="absolute top-[30%] inset-x-0 h-80 bg-blue-500/15 blur-3xl pointer-events-none" />
+          <div className="absolute top-[30%] inset-x-0 h-80 bg-blue-500/15 blur-2xl pointer-events-none" />
 
           {/* Multi-depth rain streaks */}
           {rainParticles.map((p) => (
@@ -288,7 +292,7 @@ export default function DynamicBackground({ weatherCode, isDay }: DynamicBackgro
       {effectType === 'storm' && (
         <>
           {/* Violet/Purple storm core glow */}
-          <div className="absolute top-[15%] inset-x-0 h-72 bg-purple-600/25 blur-3xl pointer-events-none" />
+          <div className="absolute top-[15%] inset-x-0 h-72 bg-purple-600/25 blur-2xl pointer-events-none" />
 
           {/* Electric dual-stage lightning flashes */}
           <div
@@ -302,8 +306,8 @@ export default function DynamicBackground({ weatherCode, isDay }: DynamicBackgro
       {effectType === 'snow' && (
         <>
           {/* Crystalline frosty glow */}
-          <div className="absolute top-[20%] right-[-5%] w-88 h-88 rounded-full bg-sky-300/20 blur-3xl pointer-events-none" />
-          <div className="absolute top-[55%] left-[-10%] w-80 h-80 rounded-full bg-blue-400/15 blur-3xl pointer-events-none" />
+          <div className="absolute top-[20%] right-[-5%] w-88 h-88 rounded-full bg-sky-300/20 blur-2xl pointer-events-none" />
+          <div className="absolute top-[55%] left-[-10%] w-80 h-80 rounded-full bg-blue-400/15 blur-2xl pointer-events-none" />
 
           {/* 2-plane snowflakes: foreground bokeh + crisp flakes */}
           {snowParticles.map((p) => (
@@ -329,10 +333,13 @@ export default function DynamicBackground({ weatherCode, isDay }: DynamicBackgro
       {effectType === 'fog' && (
         <>
           <div className="absolute top-[15%] inset-x-0 h-40 bg-white/15 blur-2xl pointer-events-none" style={{ animation: 'fog-shift 8s ease-in-out infinite' }} />
-          <div className="absolute top-[40%] inset-x-0 h-52 bg-white/10 blur-3xl pointer-events-none" style={{ animation: 'fog-shift 12s ease-in-out 2s infinite reverse' }} />
-          <div className="absolute top-[65%] inset-x-0 h-48 bg-slate-200/10 blur-3xl pointer-events-none" style={{ animation: 'fog-shift 16s ease-in-out 4s infinite' }} />
+          <div className="absolute top-[40%] inset-x-0 h-52 bg-white/10 blur-2xl pointer-events-none" style={{ animation: 'fog-shift 12s ease-in-out 2s infinite reverse' }} />
+          <div className="absolute top-[65%] inset-x-0 h-48 bg-slate-200/10 blur-2xl pointer-events-none" style={{ animation: 'fog-shift 16s ease-in-out 4s infinite' }} />
         </>
       )}
     </div>
   );
 }
+
+const DynamicBackground = React.memo(DynamicBackgroundComponent);
+export default DynamicBackground;

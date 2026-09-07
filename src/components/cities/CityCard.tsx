@@ -17,7 +17,7 @@ interface CityCardProps {
   onRetryGps?: () => void;
 }
 
-export default function CityCard({
+function CityCardComponent({
   city,
   weather,
   isActive,
@@ -154,4 +154,6 @@ export default function CityCard({
     </div>
   );
 }
+
+export default React.memo(CityCardComponent);
 

@@ -106,6 +106,7 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
   const colWidth = COL_WIDTH;
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const hudRef = useRef<HTMLDivElement>(null);
 
   // Extract hours matching the selected date
   const hours = useMemo(() => {
@@ -247,7 +248,7 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
   }, []);
 
   // Native touch gesture engine on scrollContainer:
-  // Immediate movement scrolls the chart normally; holding finger for >= 500ms activates the HUD & scrubbing
+  // Immediate movement scrolls the chart normally; holding finger for >= 200ms activates the HUD & scrubbing
   useEffect(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
@@ -269,9 +270,9 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
         longPressTimerRef.current = null;
       }
 
-      // START LONG-PRESS TIMER (500ms = pół sekundy)
+      // START LONG-PRESS TIMER (200ms)
       longPressTimerRef.current = setTimeout(() => {
-        // User held finger still for 500ms -> ACTIVATE HUD & SCRUBBER!
+        // User held finger still for 200ms -> ACTIVATE HUD & SCRUBBER!
         isLongPressActiveRef.current = true;
         isScrubbingRef.current = true;
         setIsScrubbing(true);
@@ -283,10 +284,18 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
           }
         } catch (_) {}
 
+        // Auto-scroll guard: ensure floating HUD above chart is fully visible in viewport
+        if (containerRef.current) {
+          const cRect = containerRef.current.getBoundingClientRect();
+          if (cRect.top < 135) {
+            window.scrollBy({ top: cRect.top - 135, behavior: 'smooth' });
+          }
+        }
+
         // Open HUD and lock on current hour
         updateScrubPosition(clientX);
         startEdgeAutoScroll();
-      }, 500);
+      }, 200);
     };
 
     const onTouchMove = (e: TouchEvent) => {
@@ -299,7 +308,7 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
 
       // IF LONG PRESS IS NOT ACTIVE YET:
       if (!isLongPressActiveRef.current) {
-        // If finger moves more than 7px before 500ms has elapsed:
+        // If finger moves more than 7px before 200ms has elapsed:
         if (dx > 7 || dy > 7) {
           // It's a normal scroll/swipe! Cancel the long press timer!
           if (longPressTimerRef.current) {
@@ -311,7 +320,7 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
         return;
       }
 
-      // IF LONG PRESS IS ACTIVE (user held > 500ms and is now scrubbing):
+      // IF LONG PRESS IS ACTIVE (user held > 200ms and is now scrubbing):
       // Prevent the page from scrolling vertically
       if (e.cancelable) {
         e.preventDefault();
@@ -321,7 +330,7 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
     };
 
     const onTouchEnd = () => {
-      // Cancel long press timer if lifted before 500ms
+      // Cancel long press timer if lifted before 200ms
       if (longPressTimerRef.current) {
         clearTimeout(longPressTimerRef.current);
         longPressTimerRef.current = null;
@@ -381,9 +390,15 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
       isMouseLongPressActive = true;
       isScrubbingRef.current = true;
       setIsScrubbing(true);
+      if (containerRef.current) {
+        const cRect = containerRef.current.getBoundingClientRect();
+        if (cRect.top < 135) {
+          window.scrollBy({ top: cRect.top - 135, behavior: 'smooth' });
+        }
+      }
       updateScrubPosition(startX);
       startEdgeAutoScroll();
-    }, 450);
+    }, 200);
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const dx = Math.abs(moveEvent.clientX - startX);
@@ -446,6 +461,19 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
           e.clientY <= rect.bottom
         ) {
           // Inside container, ignore
+          return;
+        }
+      }
+
+      if (hudRef.current) {
+        const hRect = hudRef.current.getBoundingClientRect();
+        if (
+          e.clientX >= hRect.left &&
+          e.clientX <= hRect.right &&
+          e.clientY >= hRect.top &&
+          e.clientY <= hRect.bottom
+        ) {
+          // Inside HUD, ignore
           return;
         }
       }
@@ -589,7 +617,7 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
     <div
       ref={containerRef}
       data-no-swipe="true"
-      className="my-1.5 -mx-2 sm:-mx-3 p-2 rounded-2xl bg-zinc-900/55 border border-white/10 backdrop-blur-2xl shadow-xl flex flex-col gap-1.5 overflow-hidden"
+      className="relative my-1.5 -mx-2 sm:-mx-3 p-2 rounded-2xl bg-zinc-900/55 border border-white/10 backdrop-blur-2xl shadow-xl flex flex-col gap-1.5 overflow-visible"
     >
       {/* Header: Title, Range & Clean Visual Legend */}
       <div className="flex items-center justify-between px-1.5 pb-1 border-b border-white/10">
@@ -623,7 +651,7 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
         </div>
       </div>
 
-      {/* Interactive Scrubber HUD: Detailed weather popup for touched hour */}
+      {/* Interactive Scrubber HUD: Detailed weather popup floating above the chart */}
       {activeHourIdx !== null && (() => {
         const activeHour = hours[activeHourIdx];
         if (!activeHour) return null;
@@ -636,10 +664,11 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
 
         return (
           <div
-            className={`mx-0.5 p-2 rounded-xl bg-zinc-950/85 border border-cyan-400/40 backdrop-blur-2xl shadow-[0_8px_25px_rgba(0,0,0,0.6)] flex flex-col gap-1.5 transition-all duration-200 ease-out select-none relative ${
+            ref={hudRef}
+            className={`absolute bottom-[calc(100%+8px)] left-0 right-0 z-40 mx-0.5 p-2.5 rounded-2xl bg-zinc-950/95 border border-cyan-400/50 backdrop-blur-2xl shadow-[0_12px_36px_rgba(0,0,0,0.85)] flex flex-col gap-1.5 transition-all duration-200 ease-out select-none ${
               isClosing
-                ? 'opacity-0 -translate-y-2 scale-[0.98] pointer-events-none'
-                : 'opacity-100 translate-y-0 scale-100 animate-in fade-in-0 slide-in-from-top-2'
+                ? 'opacity-0 translate-y-2 scale-[0.98] pointer-events-none'
+                : 'opacity-100 translate-y-0 scale-100 animate-in fade-in-0 slide-in-from-bottom-2'
             }`}
           >
             {/* Top Command Bar: Hour badge, Weather condition & Temp, Close button */}
