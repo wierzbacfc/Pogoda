@@ -125,6 +125,13 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
   const hudRef = useRef<HTMLDivElement>(null);
   const autoDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // === PERF: Shadow refs for zero-rerender scrubbing (Direct DOM Manipulation) ===
+  const activeHourIdxRef = useRef<number | null>(null);
+  const highlightLine1Ref = useRef<SVGLineElement>(null);
+  const highlightLine2Ref = useRef<SVGLineElement>(null);
+  const timelineHighlightRef = useRef<HTMLDivElement>(null);
+  const hudAnchorRef = useRef<'left' | 'right'>('right');
+
   // Column width tightened to 22-26px as requested
   const colWidth = 22;
 
@@ -141,20 +148,29 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
     [hourStep]
   );
 
-  // Extract structured hours from weather
-  const { hours } = useMemo(() => {
-    if (!weather?.hourly) return { hours: [], curIdx: -1 };
+  // Extract structured hours from weather (starting from midnight 00:00 of current day)
+  const { hours, currentHourArrayIdx } = useMemo(() => {
+    if (!weather?.hourly) return { hours: [], curIdx: -1, currentHourArrayIdx: -1 };
 
     const currentIdx = getCurrentHourIndex(weather.hourly.time, weather.timezone);
-    if (currentIdx < 0) return { hours: [], curIdx: -1 };
+    if (currentIdx < 0) return { hours: [], curIdx: -1, currentHourArrayIdx: -1 };
+
+    // Find midnight of current day by searching backward
+    const currentDayKey = weather.hourly.time[currentIdx].split('T')[0];
+    let midnightIdx = currentIdx;
+    while (midnightIdx > 0 && weather.hourly.time[midnightIdx - 1]?.startsWith(currentDayKey)) {
+      midnightIdx--;
+    }
 
     const hoursCount = days * 24;
     const list = [];
-    const maxIdx = Math.min(currentIdx + hoursCount, weather.hourly.time.length);
+    const startIdx = midnightIdx;
+    const maxIdx = Math.min(startIdx + hoursCount, weather.hourly.time.length);
+    let currentHourInArray = -1;
 
     let prevDayKey = '';
 
-    for (let i = currentIdx; i < maxIdx; i++) {
+    for (let i = startIdx; i < maxIdx; i++) {
       const timeStr = weather.hourly.time[i];
       const date = new Date(timeStr);
       const dayKey = timeStr.split('T')[0];
@@ -187,13 +203,18 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
         windDir: Math.round(weather.hourly.winddirection_10m?.[i] ?? 0),
         windGusts: Math.round(weather.hourly.windgusts_10m?.[i] ?? weather.hourly.windspeed_10m?.[i] ?? 0),
         cloudCover: Math.round(weather.hourly.cloudcover?.[i] ?? 0),
+        cloudCoverLow: Math.round(weather.hourly.cloud_cover_low?.[i] ?? 0),
+        cloudCoverHigh: Math.round(weather.hourly.cloud_cover_high?.[i] ?? 0),
         humidity: Math.round(weather.hourly.relativehumidity_2m?.[i] ?? 0),
         uvIndex: Math.round(weather.hourly.uv_index?.[i] ?? 0),
         pressure: Math.round(weather.hourly.surface_pressure?.[i] ?? 1013),
       });
+      if (i === currentIdx) {
+        currentHourInArray = list.length - 1;
+      }
     }
 
-    return { hours: list, curIdx: currentIdx };
+    return { hours: list, curIdx: currentIdx, currentHourArrayIdx: currentHourInArray };
   }, [weather, days]);
 
   // Aggregate stats
@@ -332,6 +353,16 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
     };
   }, []);
 
+  // Auto-scroll to current hour ("Teraz") on mount
+  useEffect(() => {
+    if (currentHourArrayIdx > 0 && scrollContainerRef.current) {
+      const targetScrollLeft = Math.max(0, currentHourArrayIdx * colWidth - scrollContainerRef.current.clientWidth / 3);
+      requestAnimationFrame(() => {
+        scrollContainerRef.current?.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
+      });
+    }
+  }, [currentHourArrayIdx, colWidth]);
+
   const closeHud = useCallback(() => {
     if (activeHourIdx === null || isClosingRef.current) return;
     setIsClosing(true);
@@ -345,7 +376,90 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
     }, 200);
   }, [activeHourIdx]);
 
-  const openOrUpdateHud = useCallback((idx: number) => {
+  // Direct DOM update for HUD content during scrubbing (zero React re-renders)
+  const updateHudDOM = useCallback((idx: number) => {
+    const h = hours[idx];
+    if (!h || !hudRef.current) return;
+
+    // Update highlight lines directly in SVG
+    const x = (idx * colWidth + colWidth / 2).toString();
+    if (highlightLine1Ref.current) {
+      highlightLine1Ref.current.setAttribute('x1', x);
+      highlightLine1Ref.current.setAttribute('x2', x);
+      highlightLine1Ref.current.style.display = '';
+    }
+    if (highlightLine2Ref.current) {
+      highlightLine2Ref.current.setAttribute('x1', x);
+      highlightLine2Ref.current.setAttribute('x2', x);
+      highlightLine2Ref.current.style.display = '';
+    }
+
+    // Update timeline highlight position
+    if (timelineHighlightRef.current) {
+      timelineHighlightRef.current.style.left = `${idx * colWidth}px`;
+      timelineHighlightRef.current.style.width = `${colWidth}px`;
+      timelineHighlightRef.current.style.display = '';
+    }
+
+    // Dynamic left/right anchoring via DOM
+    if (scrollContainerRef.current) {
+      const hourX = idx * colWidth + colWidth / 2;
+      const scrollLeft = scrollContainerRef.current.scrollLeft;
+      const viewportWidth = scrollContainerRef.current.clientWidth;
+      const visibleX = hourX - scrollLeft;
+      const newAnchor = visibleX > viewportWidth / 2 ? 'left' : 'right';
+      if (hudAnchorRef.current !== newAnchor) {
+        hudAnchorRef.current = newAnchor;
+        if (newAnchor === 'left') {
+          hudRef.current.style.left = '0.75rem';
+          hudRef.current.style.right = 'auto';
+        } else {
+          hudRef.current.style.right = '0.75rem';
+          hudRef.current.style.left = 'auto';
+        }
+      }
+    }
+
+    // Update HUD text content via data attributes and querySelector
+    const hourTitle = h.isCurrent ? 'Teraz' : `${h.hourNum.toString().padStart(2, '0')}:00`;
+    const dayNight = h.isDay ? 'Dzień' : 'Noc';
+
+    const elTitle = hudRef.current.querySelector('[data-hud="hour-title"]');
+    if (elTitle) elTitle.textContent = hourTitle;
+    const elDayNight = hudRef.current.querySelector('[data-hud="day-night"]');
+    if (elDayNight) elDayNight.textContent = dayNight;
+    const elTemp = hudRef.current.querySelector('[data-hud="temp"]');
+    if (elTemp) elTemp.textContent = `${h.temp}°`;
+    const elApparent = hudRef.current.querySelector('[data-hud="apparent"]');
+    if (elApparent) elApparent.textContent = `odcz. ${h.apparentTemp}°`;
+    const elCloud = hudRef.current.querySelector('[data-hud="cloud"]');
+    if (elCloud) elCloud.textContent = `${h.cloudCover}%`;
+    const elPrecipAmt = hudRef.current.querySelector('[data-hud="precip-amt"]');
+    if (elPrecipAmt) elPrecipAmt.textContent = h.precipAmount > 0 ? `${h.precipAmount.toFixed(1)} mm` : '0.0 mm';
+    const elPrecipProb = hudRef.current.querySelector('[data-hud="precip-prob"]');
+    if (elPrecipProb) elPrecipProb.textContent = `${h.precipProb}% szans`;
+    const elWindSpeed = hudRef.current.querySelector('[data-hud="wind-speed"]');
+    if (elWindSpeed) elWindSpeed.textContent = `${h.windSpeed} `;
+    const elWindUnit = hudRef.current.querySelector('[data-hud="wind-unit"]');
+    if (elWindUnit) elWindUnit.textContent = 'km/h';
+    const elGust = hudRef.current.querySelector('[data-hud="gust"]');
+    if (elGust) elGust.textContent = `por. ${h.windGusts} km/h`;
+    const elHumidity = hudRef.current.querySelector('[data-hud="humidity"]');
+    if (elHumidity) elHumidity.textContent = `${h.humidity}% `;
+    const elPressure = hudRef.current.querySelector('[data-hud="pressure"]');
+    if (elPressure) elPressure.textContent = `${h.pressure} hPa`;
+
+    // Update wind direction arrow
+    const elWindArrow = hudRef.current.querySelector('[data-hud="wind-arrow"]');
+    if (elWindArrow) (elWindArrow as HTMLElement).style.transform = `rotate(${h.windDir + 180}deg)`;
+
+    // Make HUD visible (in case it was hidden)
+    hudRef.current.style.opacity = '1';
+    hudRef.current.style.transform = 'translateY(0) scale(1)';
+    hudRef.current.style.pointerEvents = 'auto';
+  }, [hours, colWidth]);
+
+  const openOrUpdateHud = useCallback((idx: number, isScrubMode = false) => {
     if (autoDismissTimerRef.current) {
       clearTimeout(autoDismissTimerRef.current);
       autoDismissTimerRef.current = null;
@@ -354,8 +468,17 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
-    setIsClosing(false);
     isClosingRef.current = false;
+    activeHourIdxRef.current = idx;
+    
+    if (isScrubMode) {
+      // PERF: During scrubbing — only DOM manipulation, zero React re-renders
+      updateHudDOM(idx);
+      return;
+    }
+
+    // Normal click mode — update React state
+    setIsClosing(false);
     
     // Dynamic left/right anchoring to avoid covering finger
     if (scrollContainerRef.current) {
@@ -363,10 +486,12 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
       const scrollLeft = scrollContainerRef.current.scrollLeft;
       const viewportWidth = scrollContainerRef.current.clientWidth;
       const visibleX = hourX - scrollLeft;
-      setHudAnchor(visibleX > viewportWidth / 2 ? 'left' : 'right');
+      const newAnchor = visibleX > viewportWidth / 2 ? 'left' : 'right';
+      hudAnchorRef.current = newAnchor;
+      setHudAnchor(newAnchor);
     }
     setActiveHourIdx(idx);
-  }, [colWidth]);
+  }, [colWidth, updateHudDOM]);
 
   const scheduleAutoDismiss = useCallback((delayMs: number = 7000) => {
     if (autoDismissTimerRef.current) {
@@ -383,7 +508,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
     const baseOffset = isRotated ? rect.top : rect.left;
     const relX = pointerCoord - baseOffset + scrollContainerRef.current.scrollLeft;
     const idx = Math.max(0, Math.min(hours.length - 1, Math.floor(relX / colWidth)));
-    openOrUpdateHud(idx);
+    openOrUpdateHud(idx, true); // PERF: scrub mode = DOM only
   }, [colWidth, hours.length, openOrUpdateHud, isRotated]);
 
   const startEdgeAutoScroll = useCallback(() => {
@@ -456,7 +581,24 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
           }
         } catch (_) {}
 
-        updateScrubPosition(pointerX);
+        // PERF: Initial HUD render needs React state to mount the HUD element
+        // After this, scrubbing updates are DOM-only
+        if (!scrollContainerRef.current) return;
+        const rect = scrollContainerRef.current.getBoundingClientRect();
+        const baseOffset = isRotated ? rect.top : rect.left;
+        const relX = pointerX - baseOffset + scrollContainerRef.current.scrollLeft;
+        const idx = Math.max(0, Math.min(hours.length - 1, Math.floor(relX / colWidth)));
+        activeHourIdxRef.current = idx;
+        if (scrollContainerRef.current) {
+          const hourX = idx * colWidth + colWidth / 2;
+          const scrollLeft = scrollContainerRef.current.scrollLeft;
+          const viewportWidth = scrollContainerRef.current.clientWidth;
+          const visibleX = hourX - scrollLeft;
+          const newAnchor = visibleX > viewportWidth / 2 ? 'left' : 'right';
+          hudAnchorRef.current = newAnchor;
+          setHudAnchor(newAnchor);
+        }
+        setActiveHourIdx(idx);
         startEdgeAutoScroll();
       }, 200);
     };
@@ -502,6 +644,21 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
         isLongPressActiveRef.current = false;
         isScrubbingRef.current = false;
         setIsScrubbing(false);
+
+        // PERF: Sync React state from ref ONCE on touchend
+        const finalIdx = activeHourIdxRef.current;
+        if (finalIdx !== null) {
+          if (scrollContainerRef.current) {
+            const hourX = finalIdx * colWidth + colWidth / 2;
+            const scrollLeft = scrollContainerRef.current.scrollLeft;
+            const viewportWidth = scrollContainerRef.current.clientWidth;
+            const visibleX = hourX - scrollLeft;
+            const newAnchor = visibleX > viewportWidth / 2 ? 'left' : 'right';
+            hudAnchorRef.current = newAnchor;
+            setHudAnchor(newAnchor);
+          }
+          setActiveHourIdx(finalIdx);
+        }
         scheduleAutoDismiss(7000);
       }
 
@@ -583,6 +740,21 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
         }, 350);
         isScrubbingRef.current = false;
         setIsScrubbing(false);
+
+        // PERF: Sync React state from ref ONCE on mouseup
+        const finalIdx = activeHourIdxRef.current;
+        if (finalIdx !== null) {
+          if (scrollContainerRef.current) {
+            const hourX = finalIdx * colWidth + colWidth / 2;
+            const scrollLeft = scrollContainerRef.current.scrollLeft;
+            const viewportWidth = scrollContainerRef.current.clientWidth;
+            const visibleX = hourX - scrollLeft;
+            const newAnchor = visibleX > viewportWidth / 2 ? 'left' : 'right';
+            hudAnchorRef.current = newAnchor;
+            setHudAnchor(newAnchor);
+          }
+          setActiveHourIdx(finalIdx);
+        }
         scheduleAutoDismiss(7000);
       }
 
@@ -678,6 +850,22 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
   const cloudSplineD = getSvgSpline(cloudPoints);
   const cloudAreaD = `${cloudSplineD} L ${lastX.toFixed(1)} 80 L ${firstX.toFixed(1)} 80 Z`;
 
+  // Low cloud cover (darker, heavier clouds)
+  const cloudLowPoints = hours.map((h, i) => ({
+    x: i * colWidth + colWidth / 2,
+    y: getCloudY(h.cloudCoverLow),
+  }));
+  const cloudLowSplineD = getSvgSpline(cloudLowPoints);
+  const cloudLowAreaD = `${cloudLowSplineD} L ${lastX.toFixed(1)} 80 L ${firstX.toFixed(1)} 80 Z`;
+
+  // High cloud cover (lighter, wispy clouds)
+  const cloudHighPoints = hours.map((h, i) => ({
+    x: i * colWidth + colWidth / 2,
+    y: getCloudY(h.cloudCoverHigh),
+  }));
+  const cloudHighSplineD = getSvgSpline(cloudHighPoints);
+  const cloudHighAreaD = `${cloudHighSplineD} L ${lastX.toFixed(1)} 80 L ${firstX.toFixed(1)} 80 Z`;
+
   // Wind Speed & Gusts: scale from 0 to maxWindScale -> y: 76 (0) to 18 (max)
   const maxWindScale = Math.max(30, stats.maxGust + 5);
   const getWindY = (s: number) => {
@@ -756,10 +944,10 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <div className="flex flex-col shrink-0 items-start">
-                  <span className="px-1.5 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-400/30 text-[10px] font-mono font-black text-cyan-300 uppercase tracking-wider">
+                  <span data-hud="hour-title" className="px-1.5 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-400/30 text-[10px] font-mono font-black text-cyan-300 uppercase tracking-wider">
                     {hourTitle}
                   </span>
-                  <span className="text-[7.5px] text-zinc-400 font-semibold uppercase tracking-wider pl-0.5 mt-0.5">
+                  <span data-hud="day-night" className="text-[7.5px] text-zinc-400 font-semibold uppercase tracking-wider pl-0.5 mt-0.5">
                     {activeHour.isDay ? 'Dzień' : 'Noc'}
                   </span>
                 </div>
@@ -773,8 +961,8 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                       {info.label}
                     </span>
                     <span className="text-[9.5px] text-zinc-300 tabular-nums leading-tight mt-0.5">
-                      <strong className="text-white font-bold">{activeHour.temp}°</strong>
-                      <span className="text-zinc-400 ml-1.5">odcz. {activeHour.apparentTemp}°</span>
+                      <strong data-hud="temp" className="text-white font-bold">{activeHour.temp}°</strong>
+                      <span data-hud="apparent" className="text-zinc-400 ml-1.5">odcz. {activeHour.apparentTemp}°</span>
                     </span>
                   </div>
                 </div>
@@ -800,7 +988,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   <Cloud size={10} className="text-slate-300 shrink-0" />
                   <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 truncate">Chmury</span>
                 </div>
-                <span className="text-xs font-black text-white tabular-nums my-0.5">
+                <span data-hud="cloud" className="text-xs font-black text-white tabular-nums my-0.5">
                   {activeHour.cloudCover}%
                 </span>
                 <span className="text-[7.5px] text-slate-300/90 font-medium truncate leading-none">
@@ -814,10 +1002,10 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   <Droplets size={10} className="text-cyan-400 shrink-0" />
                   <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 truncate">Opady</span>
                 </div>
-                <span className="text-xs font-black text-cyan-300 tabular-nums my-0.5">
+                <span data-hud="precip-amt" className="text-xs font-black text-cyan-300 tabular-nums my-0.5">
                   {activeHour.precipAmount > 0 ? `${activeHour.precipAmount.toFixed(1)} mm` : '0.0 mm'}
                 </span>
-                <span className="text-[7.5px] text-cyan-300/90 font-medium truncate leading-none tabular-nums">
+                <span data-hud="precip-prob" className="text-[7.5px] text-cyan-300/90 font-medium truncate leading-none tabular-nums">
                   {activeHour.precipProb}% szans
                 </span>
               </div>
@@ -830,16 +1018,17 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                 </div>
                 <div className="flex items-center gap-0.5 my-0.5 leading-none">
                   <ArrowUp
+                    data-hud="wind-arrow"
                     size={8}
                     style={{ transform: `rotate(${activeHour.windDir + 180}deg)` }}
                     className="text-emerald-400 shrink-0"
                     strokeWidth={3}
                   />
                   <span className="text-xs font-black text-emerald-300 tabular-nums truncate">
-                    {activeHour.windSpeed} <span className="text-[7.5px] font-normal text-zinc-400">km/h</span>
+                    <span data-hud="wind-speed">{activeHour.windSpeed} </span><span data-hud="wind-unit" className="text-[7.5px] font-normal text-zinc-400">km/h</span>
                   </span>
                 </div>
-                <span className="text-[7.5px] text-emerald-400/90 font-medium truncate leading-none tabular-nums">
+                <span data-hud="gust" className="text-[7.5px] text-emerald-400/90 font-medium truncate leading-none tabular-nums">
                   por. {activeHour.windGusts} km/h
                 </span>
               </div>
@@ -851,9 +1040,9 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 truncate">Warunki</span>
                 </div>
                 <span className="text-xs font-black text-zinc-100 tabular-nums my-0.5">
-                  {activeHour.humidity}% <span className="text-[7.5px] font-normal text-zinc-400">wilg.</span>
+                  <span data-hud="humidity">{activeHour.humidity}% </span><span className="text-[7.5px] font-normal text-zinc-400">wilg.</span>
                 </span>
-                <span className="text-[7.5px] text-zinc-300/90 font-medium truncate leading-none tabular-nums">
+                <span data-hud="pressure" className="text-[7.5px] text-zinc-300/90 font-medium truncate leading-none tabular-nums">
                   {activeHour.pressure} hPa
                 </span>
               </div>
@@ -872,9 +1061,9 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
           style={{ width: `${chartWidth}px`, minWidth: '100%' }}
           className="h-full flex flex-col justify-between gap-1.5"
         >
-          {/* Redesigned Two-Tier Timeline Hours Row (~26px) */}
+          {/* Single-Row Timeline (compact ~20px) */}
           <div
-            className="shrink-0 h-[26px] relative overflow-hidden rounded-lg border border-white/10 select-none bg-zinc-950/60 shadow-xs"
+            className="shrink-0 h-[20px] relative overflow-hidden rounded-lg border border-white/10 select-none bg-zinc-950/60 shadow-xs"
             style={{ width: `${chartWidth}px` }}
           >
             {/* Exact Day and Night Background Bands on the timeline */}
@@ -908,7 +1097,18 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
               />
             ))}
 
-            {/* Two-Row Grid of Hours and Day Names */}
+            {/* Scrub highlight overlay (ref-based for perf) */}
+            <div
+              ref={timelineHighlightRef}
+              className="absolute top-0 bottom-0 bg-cyan-500/35 border border-cyan-400 z-30 shadow-[0_0_8px_rgba(34,211,238,0.6)] rounded-sm pointer-events-none"
+              style={{
+                display: activeHourIdx !== null && isScrubbing ? '' : 'none',
+                left: activeHourIdx !== null ? `${activeHourIdx * colWidth}px` : 0,
+                width: `${colWidth}px`,
+              }}
+            />
+
+            {/* Single-Row Grid of Hours with floating date labels */}
             <div
               className="absolute inset-0 grid items-center text-center"
               style={{ gridTemplateColumns: `repeat(${hours.length}, ${colWidth}px)` }}
@@ -917,12 +1117,18 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                 const isSelected = activeHourIdx === i;
                 const isStep = isStepColumn(h, i);
                 const showLabel = isStep || h.isCurrent || isSelected;
+                const showDateLabel = h.hourNum === 12;
+
+                // Build date string: "Pon 08.09"
+                const dateLabel = showDateLabel
+                  ? `${h.dayName.charAt(0).toUpperCase()}${h.dayName.slice(1).replace('.', '')} ${h.date.getDate().toString().padStart(2, '0')}.${(h.date.getMonth() + 1).toString().padStart(2, '0')}`
+                  : '';
 
                 return (
                   <div
                     key={h.idx}
                     data-testid={`hour-btn-${i}`}
-                    className="flex flex-col justify-between h-full relative cursor-pointer py-0.5"
+                    className="flex items-center justify-center h-full relative cursor-pointer"
                     onClick={() => openOrUpdateHud(i)}
                   >
                     {/* Active selection outline */}
@@ -933,33 +1139,34 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                       <div className="absolute inset-0 bg-blue-500/20 border-b-2 border-blue-400 z-10 rounded-sm" />
                     )}
 
-                    {/* Row 1: Day Name on new day boundary (Separated, zero collision!) */}
-                    <div className="h-[9px] flex items-center justify-center z-20">
-                      {h.isNewDay ? (
-                        <span className="text-[7.5px] font-black uppercase text-amber-300 font-mono tracking-wider leading-none drop-shadow">
-                          {h.dayName}
-                        </span>
-                      ) : null}
-                    </div>
-
-                    {/* Row 2: Hour label */}
-                    <div className="h-[12px] flex items-center justify-center z-20">
+                    {/* Floating date label at hour 12, spanning beyond cell */}
+                    {showDateLabel && (
                       <span
-                        className={`font-mono tabular-nums leading-none ${
-                          isSelected
-                            ? 'text-white font-black text-[9.5px]'
-                            : h.isCurrent
-                            ? 'text-cyan-300 font-black text-[8px]'
-                            : showLabel
-                            ? h.isDay
-                              ? 'text-amber-100 font-bold text-[8.5px]'
-                              : 'text-blue-100 font-medium text-[8.5px]'
-                            : 'text-zinc-500/50 text-[6.5px]'
-                        }`}
+                        className="absolute top-0 left-1/2 -translate-x-1/2 whitespace-nowrap z-30 px-1.5 py-[1px] rounded-b-md bg-amber-500/25 border border-t-0 border-amber-400/50 text-[7px] font-black uppercase text-amber-200 font-mono tracking-wide leading-none backdrop-blur-sm"
                       >
-                        {h.isCurrent ? 'Teraz' : showLabel ? h.hourNum.toString().padStart(2, '0') : '·'}
+                        {dateLabel}
                       </span>
-                    </div>
+                    )}
+
+                    <span
+                      className={`font-mono tabular-nums leading-none z-20 ${
+                        isSelected
+                          ? 'text-white font-black text-[9px]'
+                          : h.isCurrent
+                          ? 'text-cyan-300 font-black text-[8px]'
+                          : showLabel
+                          ? h.isDay
+                            ? 'text-amber-100 font-bold text-[8px]'
+                            : 'text-blue-100 font-medium text-[8px]'
+                          : 'text-zinc-500/50 text-[6px]'
+                      }`}
+                    >
+                      {h.isCurrent
+                        ? 'Teraz'
+                        : showLabel
+                        ? h.hourNum.toString().padStart(2, '0')
+                        : '·'}
+                    </span>
                   </div>
                 );
               })}
@@ -1123,19 +1330,19 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   );
                 })}
 
-                {/* Active Hour Guide Line */}
-                {activeHourIdx !== null && (
-                  <line
-                    x1={activeHourIdx * colWidth + colWidth / 2}
-                    y1={0}
-                    x2={activeHourIdx * colWidth + colWidth / 2}
-                    y2={110}
-                    stroke="#22d3ee"
-                    strokeWidth="1.8"
-                    strokeDasharray="3 2"
-                    className="drop-shadow-[0_0_6px_rgba(34,211,238,0.8)]"
-                  />
-                )}
+                {/* Active Hour Guide Line (ref-based for perf) */}
+                <line
+                  ref={highlightLine1Ref}
+                  x1={activeHourIdx !== null ? activeHourIdx * colWidth + colWidth / 2 : 0}
+                  y1={0}
+                  x2={activeHourIdx !== null ? activeHourIdx * colWidth + colWidth / 2 : 0}
+                  y2={110}
+                  stroke="#22d3ee"
+                  strokeWidth="1.8"
+                  strokeDasharray="3 2"
+                  className="drop-shadow-[0_0_6px_rgba(34,211,238,0.8)]"
+                  style={{ display: activeHourIdx !== null ? '' : 'none' }}
+                />
 
                 {/* Apparent Temperature: Soft ambient background fill (no values, background only) */}
                 <path d={apparentAreaD} fill="url(#landscapeApparentAreaGrad)" className="pointer-events-none" />
@@ -1322,11 +1529,24 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                     <stop offset="100%" stopColor="#020617" stopOpacity="0.75" />
                   </linearGradient>
 
-                  {/* Linear gradient for cloud area */}
+                  {/* Gradient: Total cloud area (kept as subtle base) */}
                   <linearGradient id="landscapeCloudAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.24" />
-                    <stop offset="60%" stopColor="#64748b" stopOpacity="0.12" />
-                    <stop offset="100%" stopColor="#334155" stopOpacity="0.02" />
+                    <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.08" />
+                    <stop offset="100%" stopColor="#64748b" stopOpacity="0.02" />
+                  </linearGradient>
+
+                  {/* Gradient: Low clouds — DARK, DENSE (Stratus, Cumulus, fog) */}
+                  <linearGradient id="landscapeCloudLowGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#1e293b" stopOpacity="0.7" />
+                    <stop offset="40%" stopColor="#334155" stopOpacity="0.55" />
+                    <stop offset="100%" stopColor="#475569" stopOpacity="0.15" />
+                  </linearGradient>
+
+                  {/* Gradient: High clouds — LIGHT, WISPY, blue tint (Cirrus, Cirrostratus) */}
+                  <linearGradient id="landscapeCloudHighGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#93c5fd" stopOpacity="0.3" />
+                    <stop offset="50%" stopColor="#bfdbfe" stopOpacity="0.18" />
+                    <stop offset="100%" stopColor="#dbeafe" stopOpacity="0.04" />
                   </linearGradient>
 
                   {/* Linear gradient for wind line */}
@@ -1402,35 +1622,48 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   />
                 ))}
 
-                {/* Cloud Guide Lines (50% and 100%) */}
+                {/* Cloud Guide Lines */}
                 <line x1="0" y1="16" x2={chartWidth} y2="16" stroke="rgba(255,255,255,0.06)" strokeDasharray="2 2" />
-                <text x="4" y="13.5" fill="rgba(255,255,255,0.22)" fontSize="6.5" fontWeight="semibold" className="select-none font-mono">100% chmur</text>
-                <line x1="0" y1="48" x2={chartWidth} y2="48" stroke="rgba(255,255,255,0.04)" strokeDasharray="2 2" />
-                <text x="4" y="45.5" fill="rgba(255,255,255,0.18)" fontSize="6" fontWeight="medium" className="select-none font-mono">50%</text>
+                <text x="4" y="13.5" fill="rgba(147, 197, 253, 0.35)" fontSize="6" fontWeight="bold" className="select-none font-mono">☁ wysokie</text>
+                <text x="56" y="13.5" fill="rgba(71, 85, 105, 0.55)" fontSize="6" fontWeight="bold" className="select-none font-mono">■ niskie</text>
 
-                {/* Active Hour Guide Line */}
-                {activeHourIdx !== null && (
-                  <line
-                    x1={activeHourIdx * colWidth + colWidth / 2}
-                    y1={0}
-                    x2={activeHourIdx * colWidth + colWidth / 2}
-                    y2={100}
-                    stroke="#22d3ee"
-                    strokeWidth="1.8"
-                    strokeDasharray="3 2"
-                    className="drop-shadow-[0_0_6px_rgba(34,211,238,0.8)]"
-                  />
-                )}
-
-                {/* Cloud Cover Semi-transparent Layer (0-100%) */}
-                <path d={cloudAreaD} fill="url(#landscapeCloudAreaGrad)" />
-                <path
-                  d={cloudSplineD}
-                  fill="none"
-                  stroke="rgba(148, 163, 184, 0.35)"
-                  strokeWidth="1"
+                {/* Active Hour Guide Line (ref-based for perf) */}
+                <line
+                  ref={highlightLine2Ref}
+                  x1={activeHourIdx !== null ? activeHourIdx * colWidth + colWidth / 2 : 0}
+                  y1={0}
+                  x2={activeHourIdx !== null ? activeHourIdx * colWidth + colWidth / 2 : 0}
+                  y2={100}
+                  stroke="#22d3ee"
+                  strokeWidth="1.8"
                   strokeDasharray="3 2"
+                  className="drop-shadow-[0_0_6px_rgba(34,211,238,0.8)]"
+                  style={{ display: activeHourIdx !== null ? '' : 'none' }}
                 />
+
+                {/* Cloud Cover: High clouds (lighter, wispy blue — Cirrus/Cirrostratus) */}
+                <path d={cloudHighAreaD} fill="url(#landscapeCloudHighGrad)" />
+                <path
+                  d={cloudHighSplineD}
+                  fill="none"
+                  stroke="rgba(147, 197, 253, 0.45)"
+                  strokeWidth="1"
+                  strokeDasharray="5 4"
+                  strokeLinecap="round"
+                />
+
+                {/* Cloud Cover: Low clouds (darker, denser — Stratus/Cumulus) */}
+                <path d={cloudLowAreaD} fill="url(#landscapeCloudLowGrad)" />
+                <path
+                  d={cloudLowSplineD}
+                  fill="none"
+                  stroke="rgba(30, 41, 59, 0.75)"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+
+                {/* Cloud Cover: Total as subtle base layer */}
+                <path d={cloudAreaD} fill="url(#landscapeCloudAreaGrad)" />
 
                 {/* Full-column interactive hit zones for Chart 2 */}
                 {hours.map((_, idx) => (

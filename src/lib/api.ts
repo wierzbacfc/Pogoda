@@ -29,7 +29,7 @@ export async function fetchWeatherData(lat: number, lon: number): Promise<OpenMe
   url.searchParams.append('longitude', lon.toString());
   url.searchParams.append(
     'hourly',
-    'temperature_2m,apparent_temperature,precipitation_probability,precipitation,weathercode,windspeed_10m,winddirection_10m,relativehumidity_2m,uv_index,visibility,surface_pressure,windgusts_10m,cloudcover,is_day'
+    'temperature_2m,apparent_temperature,precipitation_probability,precipitation,weathercode,windspeed_10m,winddirection_10m,relativehumidity_2m,uv_index,visibility,surface_pressure,windgusts_10m,cloudcover,cloud_cover_low,cloud_cover_high,is_day'
   );
   url.searchParams.append(
     'daily',
