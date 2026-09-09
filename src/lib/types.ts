@@ -55,6 +55,7 @@ export interface HourlyData {
   windgusts_10m?: number[];
   cloudcover?: number[];
   cloud_cover_low?: number[];
+  cloud_cover_mid?: number[];
   cloud_cover_high?: number[];
   is_day: number[];
 }
