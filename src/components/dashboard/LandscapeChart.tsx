@@ -138,8 +138,8 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
   // Column width tightened to 22-26px as requested
   const colWidth = 22;
 
-  // Step for displaying hour labels, degree values, and weather icons
-  const hourStep = 6;
+  // Step for displaying hour labels, degree values, and weather icons (Every 2 hours)
+  const hourStep = 2;
 
   // Unified step column condition: consistent across hour row, icons, temp values, wind values
   const isStepColumn = useCallback(
@@ -388,6 +388,18 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
     return spans;
   }, [hours, colWidth, sunEvents]);
 
+  // Golden Hour & Twilight window (±35 min around sunrise and sunset)
+  const twilightSpans = useMemo(() => {
+    const halfSpan = colWidth * 0.7; // ~42 minutes window
+    return sunEvents.map((ev, idx) => ({
+      idx,
+      type: ev.type,
+      x: ev.x,
+      startX: Math.max(0, ev.x - halfSpan),
+      width: halfSpan * 2,
+    }));
+  }, [sunEvents, colWidth]);
+
   // Next upcoming sunrise or sunset event for header summary
   const nextSunEvent = useMemo(() => {
     if (sunEvents.length === 0) return null;
@@ -434,13 +446,18 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
     };
   }, []);
 
-  // Auto-scroll to current hour ("Teraz") on mount
+  // Auto-scroll to current hour ("Teraz") on mount (centered in viewport)
   useEffect(() => {
-    if (currentHourArrayIdx > 0 && scrollContainerRef.current) {
-      const targetScrollLeft = Math.max(0, currentHourArrayIdx * colWidth - scrollContainerRef.current.clientWidth / 3);
-      requestAnimationFrame(() => {
-        scrollContainerRef.current?.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
-      });
+    if (currentHourArrayIdx >= 0 && scrollContainerRef.current) {
+      const doScroll = () => {
+        if (!scrollContainerRef.current) return;
+        const containerW = scrollContainerRef.current.clientWidth || window.innerWidth;
+        const targetScrollLeft = Math.max(0, currentHourArrayIdx * colWidth + colWidth / 2 - containerW / 2);
+        scrollContainerRef.current.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
+      };
+      requestAnimationFrame(doScroll);
+      const timer = setTimeout(doScroll, 100);
+      return () => clearTimeout(timer);
     }
   }, [currentHourArrayIdx, colWidth]);
 
@@ -922,6 +939,17 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
     y: getTempY(h.temp),
   }));
 
+  // Discrete horizontal isotherm guide lines
+  const minIso = Math.floor(stats.minTemp);
+  const maxIso = Math.ceil(stats.maxTemp);
+  const spanIso = maxIso - minIso;
+  const stepIso = spanIso > 25 ? 10 : 5;
+  const isotherms: { temp: number; y: number }[] = [];
+  const startIso = Math.ceil(minIso / stepIso) * stepIso;
+  for (let t = startIso; t <= maxIso; t += stepIso) {
+    isotherms.push({ temp: t, y: getTempY(t) });
+  }
+
   const tempSplineD = getSvgSpline(tempPoints);
   const firstX = tempPoints[0]?.x ?? 0;
   const lastX = tempPoints[tempPoints.length - 1]?.x ?? chartWidth;
@@ -936,16 +964,16 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
   const apparentAreaD = `${apparentSplineD} L ${lastX.toFixed(1)} 104 L ${firstX.toFixed(1)} 104 Z`;
 
   // Chart 2: Wind, Gusts & Cloud Cover (viewBox height: 100)
-  // Chart 2: Sun Intensity (Option B: 0-100% -> y: 80 (0%) to 16 (100%))
+  // Chart 2: Sun Intensity (Option B: 0-100% -> y: 86 (0%) to 16 (100%))
   const getSunY = (s: number) => {
-    return 80 - (s / 100) * 64;
+    return 86 - (s / 100) * 70;
   };
   const sunPoints = hours.map((h, i) => ({
     x: i * colWidth + colWidth / 2,
     y: getSunY(h.sunPercent),
   }));
   const sunSplineD = getSvgSpline(sunPoints);
-  const sunAreaD = `${sunSplineD} L ${lastX.toFixed(1)} 80 L ${firstX.toFixed(1)} 80 Z`;
+  const sunAreaD = `${sunSplineD} L ${lastX.toFixed(1)} 86 L ${firstX.toFixed(1)} 86 Z`;
 
   // Wind Speed & Gusts: scale from 0 to maxWindScale -> y: 76 (0) to 18 (max)
   const maxWindScale = Math.max(30, stats.maxGust + 5);
@@ -986,8 +1014,6 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
           : undefined
       }
     >
-
-
       {/* Feature 7: Day Jumper - Floating horizontal thumb navigation bar */}
       <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-1 p-1 rounded-full bg-zinc-950/85 backdrop-blur-2xl border border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.7)] pointer-events-auto select-none">
         {dayJumperDays.map((d, idx) => (
@@ -995,7 +1021,10 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
             key={d.dayKey}
             onClick={() => {
               if (scrollContainerRef.current) {
-                const targetX = Math.max(0, (d.firstHourIdx + 4) * colWidth - scrollContainerRef.current.clientWidth / 3);
+                const containerW = scrollContainerRef.current.clientWidth || window.innerWidth;
+                const targetX = idx === 0 && currentHourArrayIdx >= 0
+                  ? Math.max(0, currentHourArrayIdx * colWidth + colWidth / 2 - containerW / 2)
+                  : Math.max(0, (d.firstHourIdx + 4) * colWidth - containerW / 3);
                 scrollContainerRef.current.scrollTo({ left: targetX, behavior: 'smooth' });
                 setActiveDayIndex(idx);
               }
@@ -1022,155 +1051,6 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
         </button>
       </div>
 
-      {/* Interactive Scrubber HUD: Detailed weather popup floating above the chart */}
-      {activeHourIdx !== null && (() => {
-        const activeHour = hours[activeHourIdx];
-        if (!activeHour) return null;
-
-        const info = getWeatherInfo(activeHour.weathercode, activeHour.isDay);
-        const cloudInfo = getCloudCoverInfo(activeHour.cloudCover);
-        const hourTitle = activeHour.isCurrent
-          ? 'Teraz'
-          : `${activeHour.hourNum.toString().padStart(2, '0')}:00`;
-
-        return (
-          <div
-            ref={hudRef}
-            className={`absolute top-2 z-50 p-2.5 rounded-2xl bg-zinc-950/95 border border-cyan-400/50 backdrop-blur-2xl shadow-[0_12px_36px_rgba(0,0,0,0.85)] flex flex-col gap-1.5 transition-all duration-200 ease-out select-none ${
-              hudAnchor === 'left' ? 'left-3 right-auto' : 'right-3 left-auto'
-            } ${
-              isClosing
-                ? 'opacity-0 translate-y-2 scale-[0.98] pointer-events-none'
-                : 'opacity-100 translate-y-0 scale-100 animate-in fade-in-0 slide-in-from-bottom-2'
-            }`}
-          >
-            {/* Top Command Bar: Hour badge, Weather condition & Temp, Close button */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="flex flex-col shrink-0 items-start">
-                  <span data-hud="hour-title" className="px-1.5 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-400/30 text-[10px] font-mono font-black text-cyan-300 uppercase tracking-wider">
-                    {hourTitle}
-                  </span>
-                  <span data-hud="day-night" className="text-[7.5px] text-zinc-400 font-semibold uppercase tracking-wider pl-0.5 mt-0.5">
-                    {activeHour.isDay ? 'Dzień' : 'Noc'}
-                  </span>
-                </div>
-
-                <div className="w-px h-6 bg-white/10 shrink-0" />
-
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <WeatherIcon code={activeHour.weathercode} isDay={activeHour.isDay} size={24} glow={false} />
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-bold text-white truncate leading-tight">
-                      {info.label}
-                    </span>
-                    <span className="text-[9.5px] text-zinc-300 tabular-nums leading-tight mt-0.5">
-                      <strong data-hud="temp" className="text-white font-bold">{activeHour.temp}°</strong>
-                      <span data-hud="apparent" className="text-zinc-400 ml-1.5">odcz. {activeHour.apparentTemp}°</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closeHud();
-                }}
-                className="w-6 h-6 rounded-full bg-white/10 border border-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center text-zinc-400 hover:text-white transition cursor-pointer shrink-0"
-                title="Zamknij podgląd"
-              >
-                <X size={12} strokeWidth={2.5} />
-              </button>
-            </div>
-
-            {/* Bottom Cockpit Metrics Grid: 4 micro-cards (Słońce, Opady, Wiatr, Warunki) */}
-            <div className="grid grid-cols-4 gap-1 pt-1.5 border-t border-white/10">
-              {/* 1. Słońce (Dzień) / Księżyc (Noc) */}
-              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
-                <div className="flex items-center gap-1 text-amber-400">
-                  {activeHour.isDay ? (
-                    <Sun size={10} className="text-amber-400 shrink-0" />
-                  ) : (
-                    <Moon size={10} className="text-indigo-400 shrink-0" />
-                  )}
-                  <span data-hud="celestial-title" className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 truncate">
-                    {activeHour.isDay ? 'Słońce' : 'Księżyc'}
-                  </span>
-                </div>
-                <span
-                  data-hud="sun"
-                  className={`text-xs font-black tabular-nums my-0.5 ${
-                    activeHour.isDay ? 'text-amber-300' : 'text-indigo-300'
-                  }`}
-                >
-                  {activeHour.isDay
-                    ? `${activeHour.sunPercent}%`
-                    : (() => {
-                        const m = getMoonPhaseInfo(activeHour.date);
-                        return `${m.icon} ${m.percent}%`;
-                      })()}
-                </span>
-                <span data-hud="cloud-label" className="text-[7.5px] text-zinc-300/90 font-medium truncate leading-none">
-                  {activeHour.isDay ? `chmury ${activeHour.cloudCover}%` : getMoonPhaseInfo(activeHour.date).label}
-                </span>
-              </div>
-
-              {/* 2. Opady */}
-              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
-                <div className="flex items-center gap-1 text-cyan-400">
-                  <Droplets size={10} className="text-cyan-400 shrink-0" />
-                  <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 truncate">Opady</span>
-                </div>
-                <span data-hud="precip-amt" className="text-xs font-black text-cyan-300 tabular-nums my-0.5">
-                  {activeHour.precipAmount > 0 ? `${activeHour.precipAmount.toFixed(1)} mm` : '0.0 mm'}
-                </span>
-                <span data-hud="precip-prob" className="text-[7.5px] text-cyan-300/90 font-medium truncate leading-none tabular-nums">
-                  {activeHour.precipProb}% szans
-                </span>
-              </div>
-
-              {/* 3. Wiatr i porywy */}
-              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
-                <div className="flex items-center gap-1 text-emerald-400">
-                  <Wind size={10} className="text-emerald-400 shrink-0" />
-                  <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 truncate">Wiatr</span>
-                </div>
-                <div className="flex items-center gap-0.5 my-0.5 leading-none">
-                  <ArrowUp
-                    data-hud="wind-arrow"
-                    size={8}
-                    style={{ transform: `rotate(${activeHour.windDir + 180}deg)` }}
-                    className="text-emerald-400 shrink-0"
-                    strokeWidth={3}
-                  />
-                  <span className="text-xs font-black text-emerald-300 tabular-nums truncate">
-                    <span data-hud="wind-speed">{activeHour.windSpeed} </span><span data-hud="wind-unit" className="text-[7.5px] font-normal text-zinc-400">km/h</span>
-                  </span>
-                </div>
-                <span data-hud="gust" className="text-[7.5px] text-emerald-400/90 font-medium truncate leading-none tabular-nums">
-                  por. {activeHour.windGusts} km/h
-                </span>
-              </div>
-
-              {/* 4. Warunki / Wilgotność / Ciśnienie */}
-              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
-                <div className="flex items-center gap-1 text-amber-400">
-                  <Gauge size={10} className="text-amber-400 shrink-0" />
-                  <span className="text-[8px] font-bold uppercase tracking-wider text-zinc-400 truncate">Warunki</span>
-                </div>
-                <span className="text-xs font-black text-zinc-100 tabular-nums my-0.5">
-                  <span data-hud="humidity">{activeHour.humidity}% </span><span className="text-[7.5px] font-normal text-zinc-400">wilg.</span>
-                </span>
-                <span data-hud="pressure" className="text-[7.5px] text-zinc-300/90 font-medium truncate leading-none tabular-nums">
-                  {activeHour.pressure} hPa
-                </span>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
       {/* Main Scrollable Track (Both charts fit with maximum panoramic width) */}
       <div
         ref={scrollContainerRef}
@@ -1186,6 +1066,105 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
           style={{ width: `${chartWidth}px`, minWidth: '100%' }}
           className="h-full flex flex-col justify-between gap-1.5"
         >
+          {/* Lightweight Floating Cursor Pill HUD (glides directly along the active guide line) */}
+          {activeHourIdx !== null && (() => {
+            const activeHour = hours[activeHourIdx];
+            if (!activeHour) return null;
+            const hourTitle = activeHour.isCurrent ? 'Teraz' : `${activeHour.hourNum.toString().padStart(2, '0')}:00`;
+
+            return (
+              <div
+                ref={hudRef}
+                style={{
+                  left: `${activeHourIdx * colWidth + colWidth / 2}px`,
+                  transform: 'translateX(-50%)',
+                }}
+                className={`absolute top-[23px] z-50 px-3 py-1 rounded-full bg-zinc-950/92 border border-cyan-400/60 backdrop-blur-2xl shadow-[0_8px_28px_rgba(0,0,0,0.9)] flex items-center gap-2.5 transition-all duration-150 ease-out select-none pointer-events-auto whitespace-nowrap ${
+                  isClosing ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100 animate-in fade-in-0'
+                }`}
+              >
+                {/* Downward pointer caret towards active vertical line */}
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-x-[4px] border-x-transparent border-t-[5px] border-t-cyan-400/80 pointer-events-none" />
+
+                {/* Hour Badge */}
+                <span
+                  data-hud="hour-title"
+                  className="px-1.5 py-0.5 rounded-full bg-cyan-500/25 border border-cyan-400/40 text-[9px] font-mono font-black text-cyan-300 uppercase tracking-wider"
+                >
+                  {hourTitle}
+                </span>
+
+                {/* Weather Icon */}
+                <WeatherIcon code={activeHour.weathercode} isDay={activeHour.isDay} size={15} glow={false} />
+
+                {/* Temperature & Apparent */}
+                <div className="flex items-baseline gap-1">
+                  <strong data-hud="temp" className="text-xs font-black text-white">{activeHour.temp}°</strong>
+                  <span data-hud="apparent" className="text-[8px] text-zinc-400 font-medium">odcz. {activeHour.apparentTemp}°</span>
+                </div>
+
+                <div className="w-px h-3.5 bg-white/15" />
+
+                {/* Wind & Gusts */}
+                <div className="flex items-center gap-1 text-[8.5px] text-emerald-300 font-medium">
+                  <Wind size={10} className="text-emerald-400 shrink-0" />
+                  <span className="font-bold tabular-nums">
+                    <span data-hud="wind-speed">{activeHour.windSpeed} </span><span data-hud="wind-unit" className="text-[7.5px] font-normal text-zinc-400">km/h</span>
+                  </span>
+                  <span data-hud="gust" className="text-[7.5px] text-emerald-400/80 font-normal tabular-nums">
+                    por. {activeHour.windGusts}
+                  </span>
+                </div>
+
+                <div className="w-px h-3.5 bg-white/15" />
+
+                {/* Precipitation */}
+                <div className="flex items-center gap-1 text-[8.5px] text-cyan-300 font-medium">
+                  <Droplets size={10} className="text-cyan-400 shrink-0" />
+                  <span data-hud="precip-amt" className="font-bold tabular-nums">
+                    {activeHour.precipAmount > 0 ? `${activeHour.precipAmount.toFixed(1)} mm` : '0.0 mm'}
+                  </span>
+                  <span data-hud="precip-prob" className="text-[7.5px] text-cyan-300/80 font-normal tabular-nums">
+                    {activeHour.precipProb}%
+                  </span>
+                </div>
+
+                <div className="w-px h-3.5 bg-white/15" />
+
+                {/* Sun / Moon celestial info */}
+                <div className="flex items-center gap-1 text-[8.5px] text-amber-300 font-medium">
+                  {activeHour.isDay ? <Sun size={10} className="text-amber-400 shrink-0" /> : <Moon size={10} className="text-indigo-400 shrink-0" />}
+                  <span
+                    data-hud="sun"
+                    className="font-bold tabular-nums"
+                  >
+                    {activeHour.isDay ? `${activeHour.sunPercent}%` : `${getMoonPhaseInfo(activeHour.date).percent}%`}
+                  </span>
+                </div>
+
+                {/* Hidden tags for DOM selector compatibility */}
+                <span data-hud="day-night" className="hidden" />
+                <span data-hud="celestial-title" className="hidden" />
+                <span data-hud="cloud-label" className="hidden" />
+                <span data-hud="humidity" className="hidden" />
+                <span data-hud="pressure" className="hidden" />
+                <span data-hud="wind-arrow" className="hidden" />
+
+                {/* Close button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeHud();
+                  }}
+                  className="w-4 h-4 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-zinc-400 hover:text-white transition cursor-pointer ml-0.5 shrink-0"
+                  title="Zamknij"
+                >
+                  <X size={8} strokeWidth={2.5} />
+                </button>
+              </div>
+            );
+          })()}
+
           {/* Single-Row Timeline (compact ~20px) */}
           <div
             className="shrink-0 h-[20px] relative overflow-hidden rounded-lg border border-white/10 select-none bg-zinc-950/60 shadow-xs"
@@ -1210,6 +1189,24 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                 />
               ))}
             </div>
+
+            {/* Twilight / Golden Hour spans on timeline */}
+            {twilightSpans.map((tw, idx) => (
+              <div
+                key={`time-twilight-${idx}`}
+                style={{
+                  position: 'absolute',
+                  left: `${tw.startX}px`,
+                  width: `${tw.width}px`,
+                  height: '100%',
+                }}
+                className={`pointer-events-none ${
+                  tw.type === 'sunrise'
+                    ? 'bg-gradient-to-r from-indigo-950/60 via-rose-500/35 to-amber-500/20'
+                    : 'bg-gradient-to-r from-amber-500/20 via-orange-500/35 to-indigo-950/60'
+                }`}
+              />
+            ))}
 
             {/* Exact Sunrise / Sunset vertical dashed lines on timeline */}
             {sunEvents.map((event, idx) => (
@@ -1241,13 +1238,15 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
               {hours.map((h, i) => {
                 const isSelected = activeHourIdx === i;
                 const isStep = isStepColumn(h, i);
-                const showLabel = isStep || h.isCurrent || isSelected;
                 const showDateLabel = h.hourNum === 12;
+                // Leave hours 11, 12, 13 clean for the centered date badge
+                const isNearDateLabel = h.hourNum === 11 || h.hourNum === 12 || h.hourNum === 13;
+                const showLabel = !isNearDateLabel && (isStep || h.isCurrent || isSelected);
 
-                // Format: "Pon 07.09.2026"
+                // Format: "Pt 11.09" (Compact format so it fits cleanly in single row)
                 const dayCap = h.dayName.charAt(0).toUpperCase() + h.dayName.slice(1).replace('.', '');
                 const dateLabel = showDateLabel
-                  ? `${dayCap} ${h.date.getDate().toString().padStart(2, '0')}.${(h.date.getMonth() + 1).toString().padStart(2, '0')}.${h.date.getFullYear()}`
+                  ? `${dayCap} ${h.date.getDate().toString().padStart(2, '0')}.${(h.date.getMonth() + 1).toString().padStart(2, '0')}`
                   : '';
 
                 return (
@@ -1265,24 +1264,16 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                       <div className="absolute inset-0 bg-blue-500/20 border-b-2 border-blue-400 z-10 rounded-sm" />
                     )}
 
-                    {/* Centered Date Label + Daily Rain Sum at hour 12 (Single Row) */}
-                    {showDateLabel && (() => {
-                      const dayPrecip = daySummaryMap.get(h.dayKey)?.precipSum ?? 0;
-                      return (
-                        <div
-                          className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap z-25 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-zinc-950/70 border border-amber-400/40 text-[8px] font-mono tracking-wide leading-none backdrop-blur-md shadow-xs pointer-events-none"
-                        >
-                          <span className="font-black text-amber-200">{dateLabel}</span>
-                          {dayPrecip > 0.1 && (
-                            <span className="font-bold text-cyan-300 flex items-center gap-0.5 bg-cyan-500/20 px-1 py-0.5 rounded border border-cyan-400/30">
-                              💧 {dayPrecip.toFixed(1)} mm
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
+                    {/* Centered Date Label at hour 12 (Single Row, clean, rain sum moved to precipitation) */}
+                    {showDateLabel && (
+                      <div
+                        className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap z-25 flex items-center px-2 py-0.5 rounded-md bg-zinc-950/85 border border-amber-400/40 text-[8px] font-mono tracking-wide leading-none backdrop-blur-md shadow-xs pointer-events-none"
+                      >
+                        <span className="font-black text-amber-200">{dateLabel}</span>
+                      </div>
+                    )}
 
-                    {/* Standard hour label (empty on hour 12 so date badge stands completely alone in single line) */}
+                    {/* Standard hour label */}
                     <span
                       className={`font-mono tabular-nums leading-none z-20 ${
                         isSelected
@@ -1298,7 +1289,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                     >
                       {h.isCurrent
                         ? 'Teraz'
-                        : showDateLabel
+                        : isNearDateLabel
                         ? ''
                         : showLabel
                         ? h.hourNum.toString().padStart(2, '0')
@@ -1311,7 +1302,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
           </div>
 
           {/* WYKRES 1: TEMPERATURA & OPADY (flex-1) */}
-            <div className="flex-1 min-h-0 rounded-xl bg-zinc-900/40 border border-white/10 p-2 flex flex-col relative overflow-hidden shadow-md">
+            <div className="flex-1 min-h-0 rounded-xl bg-zinc-900/40 border border-white/10 py-2 flex flex-col relative shadow-md">
               {/* Visualizer: Temperature Curve + Precipitation Bars */}
             <div className="flex-1 min-h-0 relative w-full">
               <svg
@@ -1341,6 +1332,12 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                       return <stop key={i} offset={`${pct.toFixed(1)}%`} stopColor={getSmoothTempColor(h.temp)} />;
                     })}
                   </linearGradient>
+
+                  {/* Subtle Neomorphic dual shadow filter for elevated temperature curve */}
+                  <filter id="landscapeTempNeomorphicShadow" x="-10%" y="-30%" width="120%" height="180%">
+                    <feDropShadow dx="0" dy="2.6" stdDeviation="2.4" floodColor="#000000" floodOpacity="0.6" />
+                    <feDropShadow dx="0" dy="1.0" stdDeviation="0.8" floodColor="#09090b" floodOpacity="0.4" />
+                  </filter>
 
                   {/* Temperature area glow gradient */}
                   <linearGradient id="landscapeTempAreaGrad" x1="0" y1="0" x2="0" y2="1">
@@ -1375,6 +1372,45 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   />
                 ))}
 
+                {/* Twilight / Golden Hour ambient glow bands in SVG 1 */}
+                {twilightSpans.map((tw, idx) => (
+                  <rect
+                    key={`twilight-1-${idx}`}
+                    x={tw.startX}
+                    y={0}
+                    width={tw.width}
+                    height={110}
+                    fill={tw.type === 'sunrise' ? 'url(#landscapeDawnGrad)' : 'url(#landscapeDuskGrad)'}
+                    className="pointer-events-none"
+                  />
+                ))}
+
+                {/* Discrete Horizontal Isotherm Guide Lines */}
+                {isotherms.map((iso) => (
+                  <g key={`iso-line-${iso.temp}`}>
+                    <line
+                      x1={0}
+                      y1={iso.y}
+                      x2={chartWidth}
+                      y2={iso.y}
+                      stroke="rgba(255, 255, 255, 0.08)"
+                      strokeDasharray="2 4"
+                      strokeWidth="0.75"
+                      className="pointer-events-none"
+                    />
+                    <text
+                      x={6}
+                      y={iso.y - 1.5}
+                      fill="rgba(255, 255, 255, 0.35)"
+                      fontSize="6.5"
+                      fontWeight="bold"
+                      className="select-none font-mono pointer-events-none"
+                    >
+                      {iso.temp}°
+                    </text>
+                  </g>
+                ))}
+
                 {/* Subtle Vertical Hour Grid Lines */}
                 {hours.map((h, i) => {
                   if (activeHourIdx === i) return null;
@@ -1398,74 +1434,73 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                 {hours.map((h, i) => {
                   if (!h.isNewDay || i === 0) return null;
                   return (
+                    <g key={`sep-${i}`}>
+                      <line
+                        x1={i * colWidth}
+                        y1={0}
+                        x2={i * colWidth}
+                        y2={110}
+                        stroke="rgba(255,255,255,0.16)"
+                        strokeDasharray="3 3"
+                        strokeWidth="1"
+                      />
+                      {/* Isotherm scale on day boundary */}
+                      {isotherms.map((iso) => (
+                        <text
+                          key={`sep-iso-${i}-${iso.temp}`}
+                          x={i * colWidth + 5}
+                          y={iso.y - 1.5}
+                          fill="rgba(255, 255, 255, 0.28)"
+                          fontSize="6"
+                          fontWeight="bold"
+                          className="select-none font-mono pointer-events-none"
+                        >
+                          {iso.temp}°
+                        </text>
+                      ))}
+                    </g>
+                  );
+                })}
+
+                {/* Sunrise & Sunset Vertical Guide Lines (Background) */}
+                {sunEvents.map((event, idx) => {
+                  const isSunrise = event.type === 'sunrise';
+                  const color = isSunrise ? '#fbbf24' : '#fb923c';
+                  return (
                     <line
-                      key={`sep-${i}`}
-                      x1={i * colWidth}
+                      key={`sun-line-1-${idx}`}
+                      x1={event.x}
                       y1={0}
-                      x2={i * colWidth}
+                      x2={event.x}
                       y2={110}
-                      stroke="rgba(255,255,255,0.16)"
+                      stroke={color}
+                      strokeWidth="1.2"
                       strokeDasharray="3 3"
-                      strokeWidth="1"
+                      strokeOpacity="0.45"
+                      className="pointer-events-none"
                     />
                   );
                 })}
 
-                {/* Sunrise & Sunset Event Markers */}
-                {sunEvents.map((event, idx) => {
-                  const isSunrise = event.type === 'sunrise';
-                  const color = isSunrise ? '#fbbf24' : '#fb923c';
-                  const badgeX = Math.max(22, Math.min(chartWidth - 22, event.x));
-                  const closestHourIdx = Math.max(0, Math.min(hours.length - 1, Math.round(event.x / colWidth)));
-
+                {/* Glowing Vertical Guide Line for 'Teraz' in Chart 1 */}
+                {(() => {
+                  const curHour = hours.find((h) => h.isCurrent);
+                  if (!curHour) return null;
+                  const curX = hours.indexOf(curHour) * colWidth + colWidth / 2;
                   return (
-                    <g
-                      key={`sun-event-1-${idx}`}
-                      className="cursor-pointer pointer-events-auto select-none group"
-                      onClick={() => openOrUpdateHud(closestHourIdx)}
-                    >
-                      {/* Vertical dashed event line */}
-                      <line
-                        x1={event.x}
-                        y1={0}
-                        x2={event.x}
-                        y2={110}
-                        stroke={color}
-                        strokeWidth="1.2"
-                        strokeDasharray="3 3"
-                        strokeOpacity="0.5"
-                      />
-                      {/* Elegant Pill Badge at top */}
-                      <rect
-                        x={badgeX - 18}
-                        y={2}
-                        width={36}
-                        height={13}
-                        rx={6.5}
-                        fill={isSunrise ? '#451a03' : '#270e06'}
-                        fillOpacity="0.95"
-                        stroke={color}
-                        strokeWidth="0.8"
-                        strokeOpacity="0.85"
-                        className="transition-transform group-hover:brightness-125"
-                      />
-                      {/* Mini Sun Dot */}
-                      <circle cx={badgeX - 11} cy={8.5} r={2.2} fill={color} />
-                      {/* Arrow + Time */}
-                      <text
-                        x={badgeX + 3}
-                        y={11.5}
-                        fill={isSunrise ? '#fef08a' : '#fed7aa'}
-                        fontSize="7.5"
-                        fontWeight="bold"
-                        textAnchor="middle"
-                        className="font-mono font-bold"
-                      >
-                        {isSunrise ? `↑${event.timeStr}` : `↓${event.timeStr}`}
-                      </text>
-                    </g>
+                    <line
+                      x1={curX}
+                      y1={0}
+                      x2={curX}
+                      y2={110}
+                      stroke="#06b6d4"
+                      strokeWidth="1.5"
+                      strokeDasharray="4 2"
+                      strokeOpacity="0.75"
+                      className="drop-shadow-[0_0_8px_rgba(6,182,212,0.8)] pointer-events-none"
+                    />
                   );
-                })}
+                })()}
 
                 {/* Active Hour Guide Line (ref-based for perf) */}
                 <line
@@ -1499,7 +1534,19 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                 {/* Temperature Area Glow */}
                 <path d={tempAreaD} fill="url(#landscapeTempAreaGrad)" />
 
-                {/* Temperature Spline Curve */}
+                {/* Soft ambient thermal under-glow reflecting on glass */}
+                <path
+                  d={tempSplineD}
+                  fill="none"
+                  stroke="url(#landscapeTempLineGrad)"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeOpacity="0.18"
+                  className="pointer-events-none"
+                />
+
+                {/* Temperature Spline Curve with Neomorphic Dual Shadow */}
                 <path
                   d={tempSplineD}
                   fill="none"
@@ -1507,7 +1554,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   strokeWidth="2.8"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)]"
+                  filter="url(#landscapeTempNeomorphicShadow)"
                 />
 
                 {/* Full-column interactive hit zones for Chart 1 */}
@@ -1524,7 +1571,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   />
                 ))}
 
-                {/* Temperature Nodes & Degree Values with Tmin/Tmax Extremes (Feature 1) & Pulsing 'Teraz' (Feature 8) */}
+                {/* Temperature Nodes & Degree Values with Tmin/Tmax Extremes & Pulsing 'Teraz' */}
                 {tempPoints.map((p, idx) => {
                   const h = hours[idx];
                   const isSelected = activeHourIdx === idx;
@@ -1532,6 +1579,10 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   const isDayMax = dayMaxIndices.has(idx);
                   const isDayMin = dayMinIndices.has(idx);
                   const tColor = getSmoothTempColor(h.temp);
+
+                  // Collision avoidance: if close to a sunrise/sunset badge, place temp label below to avoid overlap
+                  const nearSunEvent = sunEvents.some(ev => Math.abs(p.x - ev.x) < 22 && p.y < 25);
+                  const textY = nearSunEvent ? p.y + 11.5 : p.y - 5;
 
                   return (
                     <g key={`temp-node-${idx}`} className="cursor-pointer pointer-events-auto" onClick={() => openOrUpdateHud(idx)}>
@@ -1544,35 +1595,35 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                           fill="none"
                           stroke="#22d3ee"
                           strokeWidth="2"
-                          className="animate-pulse"
+                          className="animate-pulse drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]"
                         />
                       )}
 
-                      {/* Feature 8: Pulsing 'Teraz' Neon Rings on current hour */}
+                      {/* Pulsing 'Teraz' Neon Dot on current hour (animate-pulse for stationary glow, no drift) */}
                       {isCurrent && !isSelected && (
                         <>
                           <circle
                             cx={p.x}
                             cy={p.y}
-                            r="9"
+                            r="6"
                             fill="none"
-                            stroke="#22d3ee"
+                            stroke="#38bdf8"
                             strokeWidth="1.5"
-                            className="animate-ping opacity-75 pointer-events-none"
+                            className="animate-pulse"
                           />
                           <circle
                             cx={p.x}
                             cy={p.y}
-                            r="5"
+                            r="3.5"
                             fill="#06b6d4"
                             stroke="#ffffff"
-                            strokeWidth="1.8"
-                            className="drop-shadow-[0_0_10px_rgba(34,211,238,0.95)]"
+                            strokeWidth="1.5"
+                            className="drop-shadow-[0_0_8px_rgba(34,211,238,0.95)]"
                           />
                         </>
                       )}
 
-                      {/* Feature 1: Tmax Extreme Halo (Day Peak) */}
+                      {/* Tmax Extreme Halo (Day Peak) */}
                       {isDayMax && !isCurrent && !isSelected && (
                         <circle
                           cx={p.x}
@@ -1585,7 +1636,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                         />
                       )}
 
-                      {/* Feature 1: Tmin Extreme Halo (Night Trough) */}
+                      {/* Tmin Extreme Halo (Night Trough) */}
                       {isDayMin && !isCurrent && !isSelected && (
                         <circle
                           cx={p.x}
@@ -1610,23 +1661,23 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                         />
                       )}
 
-                      {/* Feature 1 & 8: Degree Labels with Badges for Extremes and Current */}
+                      {/* Degree Labels with Badges for Extremes and Current */}
                       {isDayMax ? (
                         <g className="select-none pointer-events-none">
                           <rect
                             x={p.x - 13}
-                            y={p.y - 17}
+                            y={nearSunEvent ? p.y + 4 : p.y - 17}
                             width="26"
                             height="10"
                             rx="2.5"
-                            fill="rgba(245, 158, 11, 0.9)"
+                            fill="rgba(245, 158, 11, 0.95)"
                             stroke="#fbbf24"
                             strokeWidth="0.6"
                             className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]"
                           />
                           <text
                             x={p.x}
-                            y={p.y - 9.5}
+                            y={nearSunEvent ? p.y + 11.5 : p.y - 9.5}
                             fill="#ffffff"
                             fontSize="7"
                             fontWeight="900"
@@ -1640,18 +1691,18 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                         <g className="select-none pointer-events-none">
                           <rect
                             x={p.x - 13}
-                            y={p.y - 17}
+                            y={nearSunEvent ? p.y + 4 : p.y - 17}
                             width="26"
                             height="10"
                             rx="2.5"
-                            fill="rgba(14, 165, 233, 0.9)"
+                            fill="rgba(14, 165, 233, 0.95)"
                             stroke="#7dd3fc"
                             strokeWidth="0.6"
                             className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]"
                           />
                           <text
                             x={p.x}
-                            y={p.y - 9.5}
+                            y={nearSunEvent ? p.y + 11.5 : p.y - 9.5}
                             fill="#ffffff"
                             fontSize="7"
                             fontWeight="900"
@@ -1665,7 +1716,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                         <g className="select-none pointer-events-none">
                           <rect
                             x={p.x - 14}
-                            y={p.y - 18}
+                            y={nearSunEvent ? p.y + 4 : p.y - 18}
                             width="28"
                             height="11"
                             rx="3"
@@ -1676,7 +1727,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                           />
                           <text
                             x={p.x}
-                            y={p.y - 9.5}
+                            y={nearSunEvent ? p.y + 12 : p.y - 9.5}
                             fill="#ffffff"
                             fontSize="7"
                             fontWeight="900"
@@ -1689,7 +1740,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                       ) : (
                         <text
                           x={p.x}
-                          y={p.y - 5}
+                          y={textY}
                           fill={isSelected ? '#22d3ee' : '#ffffff'}
                           fontSize={isSelected ? '9' : '8'}
                           fontWeight="bold"
@@ -1768,12 +1819,87 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                     </g>
                   );
                 })}
+
+                {/* Discrete Daily Precipitation Sum centered at hour 12 */}
+                {hours.map((h, idx) => {
+                  if (h.hourNum !== 12) return null;
+                  const dayPrecip = daySummaryMap.get(h.dayKey)?.precipSum ?? 0;
+                  if (dayPrecip <= 0.1) return null;
+                  const p = tempPoints[idx];
+                  return (
+                    <g key={`day-precip-sum-${idx}`} className="pointer-events-none select-none">
+                      <rect
+                        x={p.x - 18}
+                        y={88}
+                        width={36}
+                        height={12}
+                        rx={3}
+                        fill="rgba(8, 47, 73, 0.92)"
+                        stroke="rgba(56, 189, 248, 0.55)"
+                        strokeWidth="0.8"
+                        className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]"
+                      />
+                      <text
+                        x={p.x}
+                        y={96.5}
+                        fill="#38bdf8"
+                        fontSize="7"
+                        fontWeight="bold"
+                        textAnchor="middle"
+                        className="font-mono font-bold"
+                      >
+                        💧{dayPrecip.toFixed(1)}mm
+                      </text>
+                    </g>
+                  );
+                })}
+
+                {/* Sunrise & Sunset Badges (Rendered LAST so they are always on top and never occluded by temperature) */}
+                {sunEvents.map((event, idx) => {
+                  const isSunrise = event.type === 'sunrise';
+                  const color = isSunrise ? '#fbbf24' : '#fb923c';
+                  const badgeX = Math.max(22, Math.min(chartWidth - 22, event.x));
+                  const closestHourIdx = Math.max(0, Math.min(hours.length - 1, Math.round(event.x / colWidth)));
+
+                  return (
+                    <g
+                      key={`sun-badge-top-${idx}`}
+                      className="cursor-pointer pointer-events-auto select-none group"
+                      onClick={() => openOrUpdateHud(closestHourIdx)}
+                    >
+                      <rect
+                        x={badgeX - 18}
+                        y={2}
+                        width={36}
+                        height={12}
+                        rx={6}
+                        fill={isSunrise ? '#451a03' : '#270e06'}
+                        fillOpacity="0.98"
+                        stroke={color}
+                        strokeWidth="1"
+                        className="drop-shadow-[0_2px_5px_rgba(0,0,0,0.9)] transition-transform group-hover:scale-105"
+                      />
+                      <circle cx={badgeX - 11} cy={8} r={2.2} fill={color} />
+                      <text
+                        x={badgeX + 3}
+                        y={11.5}
+                        fill={isSunrise ? '#fef08a' : '#fed7aa'}
+                        fontSize="7.5"
+                        fontWeight="bold"
+                        textAnchor="middle"
+                        className="font-mono font-bold select-none"
+                      >
+                        {isSunrise ? `↑${event.timeStr}` : `↓${event.timeStr}`}
+                      </text>
+                    </g>
+                  );
+                })}
               </svg>
             </div>
           </div>
 
           {/* WYKRES 2: WIATR, PORYWY & NASŁONECZNIENIE (flex-1) */}
-          <div className="flex-1 min-h-0 rounded-xl bg-zinc-900/40 border border-white/10 p-2 flex flex-col relative shadow-md">
+          <div className="flex-1 min-h-0 rounded-xl bg-zinc-900/40 border border-white/10 py-2 flex flex-col relative shadow-md">
             {/* Sticky Corner Badge (always pinned at left edge during horizontal scroll) */}
             <div className="sticky left-2 top-0 z-10 flex items-center gap-1.5 pointer-events-none self-start -mb-6">
               <span className="text-[10px] font-bold text-amber-300/90 bg-zinc-950/85 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-amber-400/25 flex items-center gap-1.5 shadow-md">
@@ -1828,6 +1954,19 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                     width={span.width}
                     height={100}
                     fill={span.isDay ? 'url(#landscapeDayGrad2)' : 'url(#landscapeNightGrad2)'}
+                  />
+                ))}
+
+                {/* Twilight / Golden Hour ambient glow bands in SVG 2 */}
+                {twilightSpans.map((tw, idx) => (
+                  <rect
+                    key={`twilight-2-${idx}`}
+                    x={tw.startX}
+                    y={0}
+                    width={tw.width}
+                    height={100}
+                    fill={tw.type === 'sunrise' ? 'url(#landscapeDawnGrad2)' : 'url(#landscapeDuskGrad2)'}
+                    className="pointer-events-none"
                   />
                 ))}
 
@@ -1923,38 +2062,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   );
                 })()}
 
-                {/* Midnight Moon Phase Accents in Night Zone (Feature 4) */}
-                {hours.map((h, idx) => {
-                  if (h.hourNum !== 0) return null;
-                  const x = idx * colWidth + colWidth / 2;
-                  const moon = getMoonPhaseInfo(h.date);
-                  return (
-                    <g key={`moon-${idx}`} className="pointer-events-none select-none">
-                      <circle
-                        cx={x}
-                        cy={72}
-                        r="8.5"
-                        fill="rgba(99, 102, 241, 0.18)"
-                        stroke="rgba(129, 140, 248, 0.35)"
-                        strokeWidth="0.8"
-                      />
-                      <text x={x} y={75.5} textAnchor="middle" fontSize="9">
-                        {moon.icon}
-                      </text>
-                      <text
-                        x={x}
-                        y={60}
-                        textAnchor="middle"
-                        fill="rgba(199, 210, 254, 0.75)"
-                        fontSize="5.5"
-                        fontWeight="bold"
-                        className="font-mono"
-                      >
-                        {moon.label}
-                      </text>
-                    </g>
-                  );
-                })}
+
 
                 {/* Sun Intensity Area & Spline: Warm Golden Solar Profile (Option B: Weighted Optical Sun Index) */}
                 <path d={sunAreaD} fill="url(#landscapeSunAreaGrad)" />
@@ -1997,6 +2105,15 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
 
                   return (
                     <g key={`gust-${idx}`} className="cursor-pointer pointer-events-auto" onClick={() => openOrUpdateHud(idx)}>
+                      {/* Wind Flare: Energy flare polygon connecting baseline wind point to gust */}
+                      {h.windGusts > h.windSpeed + 2 && (
+                        <polygon
+                          points={`${p.x - 3.5},${gustY} ${p.x + 3.5},${gustY} ${p.x + 1},${p.y} ${p.x - 1},${p.y}`}
+                          fill="url(#landscapeWindFlareGrad)"
+                          className="pointer-events-none"
+                        />
+                      )}
+
                       {/* Whisker connecting wind speed point to gust tick */}
                       <line
                         x1={p.x}
