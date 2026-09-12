@@ -388,9 +388,9 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
     return spans;
   }, [hours, colWidth, sunEvents]);
 
-  // Golden Hour & Twilight window (±35 min around sunrise and sunset)
+  // Golden Hour & Twilight window (±40 min around sunrise and sunset for deep atmospheric glow)
   const twilightSpans = useMemo(() => {
-    const halfSpan = colWidth * 0.7; // ~42 minutes window
+    const halfSpan = colWidth * 1.35; // ~80 minutes window
     return sunEvents.map((ev, idx) => ({
       idx,
       type: ev.type,
@@ -410,7 +410,11 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
   // HUD interaction with dynamic anchor (left/right) to never cover active hour
   const [hudAnchor, setHudAnchor] = useState<'left' | 'right'>('right');
 
-  // Track if physical device viewport is in portrait mode (width < height)
+  // Track physical device dimensions and portrait mode
+  const [viewportDims, setViewportDims] = useState<{ w: number; h: number }>(() => {
+    if (typeof window === 'undefined') return { w: 872, h: 392 };
+    return { w: window.innerWidth, h: window.innerHeight };
+  });
   const [isPortraitViewport, setIsPortraitViewport] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return window.innerWidth < window.innerHeight;
@@ -431,6 +435,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
 
     const handleOrientationCheck = () => {
       setIsPortraitViewport(window.innerWidth < window.innerHeight);
+      setViewportDims({ w: window.innerWidth, h: window.innerHeight });
     };
     window.addEventListener('resize', handleOrientationCheck);
     window.addEventListener('orientationchange', handleOrientationCheck);
@@ -499,23 +504,11 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
       timelineHighlightRef.current.style.display = '';
     }
 
-    // Dynamic left/right anchoring via DOM
-    if (scrollContainerRef.current) {
-      const hourX = idx * colWidth + colWidth / 2;
-      const scrollLeft = scrollContainerRef.current.scrollLeft;
-      const viewportWidth = scrollContainerRef.current.clientWidth;
-      const visibleX = hourX - scrollLeft;
-      const newAnchor = visibleX > viewportWidth / 2 ? 'left' : 'right';
-      if (hudAnchorRef.current !== newAnchor) {
-        hudAnchorRef.current = newAnchor;
-        if (newAnchor === 'left') {
-          hudRef.current.style.left = '0.75rem';
-          hudRef.current.style.right = 'auto';
-        } else {
-          hudRef.current.style.right = '0.75rem';
-          hudRef.current.style.left = 'auto';
-        }
-      }
+    // Dynamic floating cursor positioning directly on active column
+    if (hudRef.current) {
+      hudRef.current.style.left = `${idx * colWidth + colWidth / 2}px`;
+      hudRef.current.style.right = 'auto';
+      hudRef.current.style.transform = 'translateX(-50%)';
     }
 
     // Update HUD text content via data attributes and querySelector
@@ -921,10 +914,10 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
 
   if (!weather || hours.length === 0) return null;
 
-  const chartWidth = Math.max(
-    hours.length * colWidth,
-    typeof window !== 'undefined' ? window.innerWidth - 16 : 600
-  );
+  const availableWidth = typeof window !== 'undefined'
+    ? Math.max(viewportDims.w, viewportDims.h) - 16
+    : 600;
+  const chartWidth = Math.max(hours.length * colWidth, availableWidth);
 
   // --- SVG Coordinates & Scales ---
 
@@ -1007,8 +1000,8 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
       style={
         isRotated
           ? {
-              width: '100vh',
-              height: '100vw',
+              width: `${Math.max(viewportDims.w, viewportDims.h)}px`,
+              height: `${Math.min(viewportDims.w, viewportDims.h)}px`,
               transform: 'rotate(90deg) translateY(-100%)',
             }
           : undefined
@@ -1054,17 +1047,18 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
       {/* Main Scrollable Track (Both charts fit with maximum panoramic width) */}
       <div
         ref={scrollContainerRef}
+        id="landscapeChartScrollContainer"
         onMouseDown={handleMouseDown}
         onScroll={(e) => {
           const scrollLeft = e.currentTarget.scrollLeft;
           const currentDayIdx = Math.floor((scrollLeft + 120) / (24 * colWidth));
           setActiveDayIndex(Math.max(0, Math.min(dayJumperDays.length - 1, currentDayIdx)));
         }}
-        className="flex-1 min-h-0 overflow-x-auto overflow-y-auto px-2 pt-1.5 pb-8 flex flex-col [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full touch-pan-x cursor-ew-resize pr-12"
+        className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden px-2 pt-1.5 pb-8 flex flex-col [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full touch-pan-x cursor-ew-resize pr-10"
       >
         <div
           style={{ width: `${chartWidth}px`, minWidth: '100%' }}
-          className="h-full flex flex-col justify-between gap-1.5"
+          className="h-full flex flex-col gap-0"
         >
           {/* Lightweight Floating Cursor Pill HUD (glides directly along the active guide line) */}
           {activeHourIdx !== null && (() => {
@@ -1165,9 +1159,9 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
             );
           })()}
 
-          {/* Single-Row Timeline (compact ~20px) */}
+          {/* Single-Row Timeline (compact ~21px, seamlessly fused to charts below) */}
           <div
-            className="shrink-0 h-[20px] relative overflow-hidden rounded-lg border border-white/10 select-none bg-zinc-950/60 shadow-xs"
+            className="shrink-0 h-[21px] relative overflow-hidden rounded-t-xl rounded-b-none border-t border-x border-b border-white/10 select-none bg-zinc-950/75 shadow-xs"
             style={{ width: `${chartWidth}px` }}
           >
             {/* Exact Day and Night Background Bands on the timeline */}
@@ -1202,8 +1196,8 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                 }}
                 className={`pointer-events-none ${
                   tw.type === 'sunrise'
-                    ? 'bg-gradient-to-r from-indigo-950/60 via-rose-500/35 to-amber-500/20'
-                    : 'bg-gradient-to-r from-amber-500/20 via-orange-500/35 to-indigo-950/60'
+                    ? 'bg-gradient-to-r from-transparent via-rose-500/40 via-amber-400/45 to-transparent'
+                    : 'bg-gradient-to-r from-transparent via-amber-400/40 via-orange-500/50 to-transparent'
                 }`}
               />
             ))}
@@ -1238,9 +1232,14 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
               {hours.map((h, i) => {
                 const isSelected = activeHourIdx === i;
                 const isStep = isStepColumn(h, i);
-                const showDateLabel = h.hourNum === 12;
-                // Leave hours 11, 12, 13 clean for the centered date badge
-                const isNearDateLabel = h.hourNum === 11 || h.hourNum === 12 || h.hourNum === 13;
+                const curHourObj = hours.find((x) => x.isCurrent);
+                const isToday = curHourObj && h.date.toDateString() === curHourObj.date.toDateString();
+                const curHNum = curHourObj?.hourNum ?? -99;
+                // If current hour is near 12 on today, shift date badge to 16:00 to avoid overlapping "Teraz"
+                const targetHour = isToday && Math.abs(curHNum - 12) <= 2 ? 16 : 12;
+                const showDateLabel = h.hourNum === targetHour;
+                // Leave 1 hour before and after clean for centered date badge
+                const isNearDateLabel = Math.abs(h.hourNum - targetHour) <= 1;
                 const showLabel = !isNearDateLabel && (isStep || h.isCurrent || isSelected);
 
                 // Format: "Pt 11.09" (Compact format so it fits cleanly in single row)
@@ -1301,9 +1300,9 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
             </div>
           </div>
 
-          {/* WYKRES 1: TEMPERATURA & OPADY (flex-1) */}
-            <div className="flex-1 min-h-0 rounded-xl bg-zinc-900/40 border border-white/10 py-2 flex flex-col relative shadow-md">
-              {/* Visualizer: Temperature Curve + Precipitation Bars */}
+          {/* WYKRES 1: TEMPERATURA & OPADY (flex-1, seamless middle panel) */}
+          <div className="flex-1 min-h-0 rounded-none border-x border-b border-white/10 bg-zinc-900/40 py-1 flex flex-col relative shadow-none">
+            {/* Visualizer: Temperature Curve + Precipitation Bars */}
             <div className="flex-1 min-h-0 relative w-full">
               <svg
                 className="absolute inset-0 w-full h-full"
@@ -1357,6 +1356,26 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   <linearGradient id="landscapeRainBarGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#22d3ee" />
                     <stop offset="100%" stopColor="#2563eb" />
+                  </linearGradient>
+
+                  {/* Dawn / Sunrise Golden Hour atmospheric glow band */}
+                  <linearGradient id="landscapeDawnGrad" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#030712" stopOpacity="0" />
+                    <stop offset="25%" stopColor="#6366f1" stopOpacity="0.18" />
+                    <stop offset="48%" stopColor="#f43f5e" stopOpacity="0.38" />
+                    <stop offset="65%" stopColor="#f59e0b" stopOpacity="0.42" />
+                    <stop offset="85%" stopColor="#38bdf8" stopOpacity="0.18" />
+                    <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
+                  </linearGradient>
+
+                  {/* Dusk / Sunset Golden Hour atmospheric glow band */}
+                  <linearGradient id="landscapeDuskGrad" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0" />
+                    <stop offset="20%" stopColor="#fbbf24" stopOpacity="0.25" />
+                    <stop offset="45%" stopColor="#f97316" stopOpacity="0.45" />
+                    <stop offset="68%" stopColor="#e11d48" stopOpacity="0.35" />
+                    <stop offset="88%" stopColor="#4338ca" stopOpacity="0.20" />
+                    <stop offset="100%" stopColor="#020617" stopOpacity="0" />
                   </linearGradient>
                 </defs>
 
@@ -1898,8 +1917,8 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
             </div>
           </div>
 
-          {/* WYKRES 2: WIATR, PORYWY & NASŁONECZNIENIE (flex-1) */}
-          <div className="flex-1 min-h-0 rounded-xl bg-zinc-900/40 border border-white/10 py-2 flex flex-col relative shadow-md">
+          {/* WYKRES 2: WIATR, PORYWY & NASŁONECZNIENIE (flex-1, seamless bottom panel) */}
+          <div className="flex-1 min-h-0 rounded-b-xl rounded-t-none border-x border-b border-white/10 bg-zinc-900/40 py-1 flex flex-col relative shadow-md">
             {/* Sticky Corner Badge (always pinned at left edge during horizontal scroll) */}
             <div className="sticky left-2 top-0 z-10 flex items-center gap-1.5 pointer-events-none self-start -mb-6">
               <span className="text-[10px] font-bold text-amber-300/90 bg-zinc-950/85 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-amber-400/25 flex items-center gap-1.5 shadow-md">
@@ -1942,6 +1961,26 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                       const pct = ((i + 0.5) / hours.length) * 100;
                       return <stop key={i} offset={`${pct.toFixed(1)}%`} stopColor={getSmoothWindColor(h.windSpeed)} />;
                     })}
+                  </linearGradient>
+
+                  {/* Dawn / Sunrise Golden Hour atmospheric glow band (Chart 2) */}
+                  <linearGradient id="landscapeDawnGrad2" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#030712" stopOpacity="0" />
+                    <stop offset="25%" stopColor="#6366f1" stopOpacity="0.18" />
+                    <stop offset="48%" stopColor="#f43f5e" stopOpacity="0.38" />
+                    <stop offset="65%" stopColor="#f59e0b" stopOpacity="0.42" />
+                    <stop offset="85%" stopColor="#38bdf8" stopOpacity="0.18" />
+                    <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
+                  </linearGradient>
+
+                  {/* Dusk / Sunset Golden Hour atmospheric glow band (Chart 2) */}
+                  <linearGradient id="landscapeDuskGrad2" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0" />
+                    <stop offset="20%" stopColor="#fbbf24" stopOpacity="0.25" />
+                    <stop offset="45%" stopColor="#f97316" stopOpacity="0.45" />
+                    <stop offset="68%" stopColor="#e11d48" stopOpacity="0.35" />
+                    <stop offset="88%" stopColor="#4338ca" stopOpacity="0.20" />
+                    <stop offset="100%" stopColor="#020617" stopOpacity="0" />
                   </linearGradient>
                 </defs>
 
