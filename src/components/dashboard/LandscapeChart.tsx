@@ -16,6 +16,8 @@ import {
   Navigation,
   X,
   ArrowUp,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 interface LandscapeChartProps {
@@ -505,56 +507,63 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
     }
 
     // Dynamic floating cursor positioning directly on active column
-    if (hudRef.current) {
-      hudRef.current.style.left = `${idx * colWidth + colWidth / 2}px`;
-      hudRef.current.style.right = 'auto';
-      hudRef.current.style.transform = 'translateX(-50%)';
+    if (scrollContainerRef.current) {
+      const hourX = idx * colWidth + colWidth / 2;
+      const scrollLeft = scrollContainerRef.current.scrollLeft;
+      const viewportWidth = scrollContainerRef.current.clientWidth;
+      const visibleX = hourX - scrollLeft;
+      const newAnchor = visibleX > viewportWidth / 2 ? 'left' : 'right';
+      
+      if (hudAnchorRef.current !== newAnchor) {
+        hudAnchorRef.current = newAnchor;
+        if (newAnchor === 'left') {
+          hudRef.current.classList.remove('right-3');
+          hudRef.current.classList.add('left-3');
+        } else {
+          hudRef.current.classList.remove('left-3');
+          hudRef.current.classList.add('right-3');
+        }
+      }
     }
 
     // Update HUD text content via data attributes and querySelector
     const hourTitle = h.isCurrent ? 'Teraz' : `${h.hourNum.toString().padStart(2, '0')}:00`;
     const dayNight = h.isDay ? 'Dzień' : 'Noc';
+    const info = getWeatherInfo(h.weathercode, h.isDay);
+    const cloudInfo = getCloudCoverInfo(h.cloudCover);
 
     const elTitle = hudRef.current.querySelector('[data-hud="hour-title"]');
     if (elTitle) elTitle.textContent = hourTitle;
     const elDayNight = hudRef.current.querySelector('[data-hud="day-night"]');
     if (elDayNight) elDayNight.textContent = dayNight;
+    
+    const elWeatherLabel = hudRef.current.querySelector('[data-hud="weather-label"]');
+    if (elWeatherLabel) elWeatherLabel.textContent = info.label;
+    
     const elTemp = hudRef.current.querySelector('[data-hud="temp"]');
     if (elTemp) elTemp.textContent = `${h.temp}°`;
     const elApparent = hudRef.current.querySelector('[data-hud="apparent"]');
     if (elApparent) elApparent.textContent = `odcz. ${h.apparentTemp}°`;
-    const elCelestialTitle = hudRef.current.querySelector('[data-hud="celestial-title"]');
-    if (elCelestialTitle) elCelestialTitle.textContent = h.isDay ? 'Słońce' : 'Księżyc';
-
-    const elSun = hudRef.current.querySelector('[data-hud="sun"]');
-    if (elSun) {
-      if (h.isDay) {
-        elSun.textContent = `${h.sunPercent}%`;
-        elSun.className = 'text-xs font-black text-amber-300 tabular-nums my-0.5';
-      } else {
-        const m = getMoonPhaseInfo(h.date);
-        elSun.textContent = `${m.icon} ${m.percent}%`;
-        elSun.className = 'text-xs font-black text-indigo-300 tabular-nums my-0.5';
-      }
-    }
+    
+    const elCloudCover = hudRef.current.querySelector('[data-hud="cloud-cover"]');
+    if (elCloudCover) elCloudCover.textContent = `${h.cloudCover}%`;
     const elCloudLabel = hudRef.current.querySelector('[data-hud="cloud-label"]');
-    if (elCloudLabel) {
-      elCloudLabel.textContent = h.isDay ? `chmury ${h.cloudCover}%` : getMoonPhaseInfo(h.date).label;
-    }
+    if (elCloudLabel) elCloudLabel.textContent = cloudInfo.label;
+    
     const elPrecipAmt = hudRef.current.querySelector('[data-hud="precip-amt"]');
     if (elPrecipAmt) elPrecipAmt.textContent = h.precipAmount > 0 ? `${h.precipAmount.toFixed(1)} mm` : '0.0 mm';
     const elPrecipProb = hudRef.current.querySelector('[data-hud="precip-prob"]');
     if (elPrecipProb) elPrecipProb.textContent = `${h.precipProb}% szans`;
+    
     const elWindSpeed = hudRef.current.querySelector('[data-hud="wind-speed"]');
-    if (elWindSpeed) elWindSpeed.textContent = `${h.windSpeed} `;
-    const elWindUnit = hudRef.current.querySelector('[data-hud="wind-unit"]');
-    if (elWindUnit) elWindUnit.textContent = 'km/h';
+    if (elWindSpeed) elWindSpeed.textContent = `${h.windSpeed}`;
     const elGust = hudRef.current.querySelector('[data-hud="gust"]');
     if (elGust) elGust.textContent = `por. ${h.windGusts} km/h`;
+    
     const elHumidity = hudRef.current.querySelector('[data-hud="humidity"]');
-    if (elHumidity) elHumidity.textContent = `${h.humidity}% `;
+    if (elHumidity) elHumidity.textContent = `${h.humidity}%`;
     const elPressure = hudRef.current.querySelector('[data-hud="pressure"]');
-    if (elPressure) elPressure.textContent = `${h.pressure} hPa`;
+    if (elPressure) elPressure.textContent = `${h.pressure} hPa${h.uvIndex > 0 ? ` · UV ${h.uvIndex}` : ''}`;
 
     // Update wind direction arrow
     const elWindArrow = hudRef.current.querySelector('[data-hud="wind-arrow"]');
@@ -617,6 +626,33 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
     const idx = Math.max(0, Math.min(hours.length - 1, Math.floor(relX / colWidth)));
     openOrUpdateHud(idx, true); // PERF: scrub mode = DOM only
   }, [colWidth, hours.length, openOrUpdateHud, isRotated]);
+
+  // Keyboard navigation for HUD
+  useEffect(() => {
+    if (activeHourIdx === null) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' && activeHourIdx > 0) {
+        openOrUpdateHud(activeHourIdx - 1);
+        if (scrollContainerRef.current) {
+          const hourX = (activeHourIdx - 1) * colWidth + colWidth / 2;
+          const sl = scrollContainerRef.current.scrollLeft;
+          if (hourX < sl + 50) scrollContainerRef.current.scrollBy({ left: -colWidth * 3, behavior: 'smooth' });
+        }
+      } else if (e.key === 'ArrowRight' && activeHourIdx < hours.length - 1) {
+        openOrUpdateHud(activeHourIdx + 1);
+        if (scrollContainerRef.current) {
+          const hourX = (activeHourIdx + 1) * colWidth + colWidth / 2;
+          const sl = scrollContainerRef.current.scrollLeft;
+          const cw = scrollContainerRef.current.clientWidth;
+          if (hourX > sl + cw - 50) scrollContainerRef.current.scrollBy({ left: colWidth * 3, behavior: 'smooth' });
+        }
+      } else if (e.key === 'Escape') {
+        closeHud();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeHourIdx, hours.length, openOrUpdateHud, closeHud, colWidth]);
 
   const startEdgeAutoScroll = useCallback(() => {
     if (autoScrollRafRef.current) return;
@@ -1044,6 +1080,146 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
         </button>
       </div>
 
+      {/* Rich Glassmorphic HUD anchored to screen edge (never covers finger) */}
+      {activeHourIdx !== null && (() => {
+        const activeHour = hours[activeHourIdx];
+        if (!activeHour) return null;
+        const hourTitle = activeHour.isCurrent ? 'Teraz' : `${activeHour.hourNum.toString().padStart(2, '0')}:00`;
+        const info = getWeatherInfo(activeHour.weathercode, activeHour.isDay);
+        const cloudInfo = getCloudCoverInfo(activeHour.cloudCover);
+
+        return (
+          <div
+            ref={hudRef}
+            className={`absolute top-4 ${hudAnchorRef.current === 'left' ? 'left-3' : 'right-3'} z-[110] w-[260px] p-2.5 rounded-2xl bg-zinc-950/90 border border-cyan-400/50 backdrop-blur-2xl shadow-[0_12px_36px_rgba(0,0,0,0.85)] flex flex-col gap-1.5 transition-all duration-200 ease-out select-none pointer-events-auto ${
+              isClosing ? 'opacity-0 translate-y-2 scale-[0.98] pointer-events-none' : 'opacity-100 translate-y-0 scale-100 animate-in fade-in-0 slide-in-from-bottom-2'
+            }`}
+          >
+            {/* Top Command Bar: Hour badge, Weather condition & Temp, Navigation */}
+            <div className="flex items-center justify-between gap-1.5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="flex flex-col shrink-0 items-start">
+                  <span data-hud="hour-title" className="px-1.5 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-400/30 text-[10px] font-mono font-black text-cyan-300 uppercase tracking-wider">
+                    {hourTitle}
+                  </span>
+                  <span data-hud="day-night" className="text-[7.5px] text-zinc-400 font-semibold uppercase tracking-wider pl-0.5 mt-0.5">
+                    {activeHour.isDay ? 'Dzień' : 'Noc'}
+                  </span>
+                </div>
+
+                <div className="w-px h-6 bg-white/10 shrink-0 mx-0.5" />
+
+                <div className="flex items-center gap-1 min-w-0">
+                  <WeatherIcon code={activeHour.weathercode} isDay={activeHour.isDay} size={22} glow={false} />
+                  <div className="flex flex-col min-w-0">
+                    <span data-hud="weather-label" className="text-[10px] font-bold text-white truncate leading-tight">
+                      {info.label}
+                    </span>
+                    <span className="text-[9px] text-zinc-300 tabular-nums leading-tight mt-0.5">
+                      <strong data-hud="temp" className="text-white font-bold">{activeHour.temp}°</strong>
+                      <span data-hud="apparent" className="text-zinc-400 ml-1">odcz. {activeHour.apparentTemp}°</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation & Close */}
+              <div className="flex items-center gap-0.5 shrink-0 bg-white/5 rounded-full p-0.5 border border-white/5">
+                <button
+                  onClick={(e) => { e.stopPropagation(); if (activeHourIdx > 0) openOrUpdateHud(activeHourIdx - 1); }}
+                  className="w-6 h-6 rounded-full hover:bg-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition cursor-pointer disabled:opacity-30"
+                  disabled={activeHourIdx === 0}
+                >
+                  <ChevronLeft size={14} strokeWidth={2.5} />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); if (activeHourIdx < hours.length - 1) openOrUpdateHud(activeHourIdx + 1); }}
+                  className="w-6 h-6 rounded-full hover:bg-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition cursor-pointer disabled:opacity-30"
+                  disabled={activeHourIdx === hours.length - 1}
+                >
+                  <ChevronRight size={14} strokeWidth={2.5} />
+                </button>
+                <div className="w-px h-3 bg-white/10 mx-0.5" />
+                <button
+                  onClick={(e) => { e.stopPropagation(); closeHud(); }}
+                  className="w-6 h-6 rounded-full hover:bg-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition cursor-pointer"
+                >
+                  <X size={12} strokeWidth={2.5} />
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom Cockpit Metrics Grid: 4 micro-cards (Chmury, Opady, Wiatr, Warunki) */}
+            <div className="grid grid-cols-4 gap-1 pt-1.5 border-t border-white/10">
+              {/* 1. Zachmurzenie */}
+              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
+                <div className="flex items-center gap-1 text-slate-300">
+                  <Cloud size={9} className="text-slate-300 shrink-0" />
+                  <span className="text-[7.5px] font-bold uppercase tracking-wider text-zinc-400 truncate">Chmury</span>
+                </div>
+                <span data-hud="cloud-cover" className="text-[10px] font-black text-white tabular-nums my-0.5">
+                  {activeHour.cloudCover}%
+                </span>
+                <span data-hud="cloud-label" className="text-[7px] text-slate-300/90 font-medium truncate leading-none">
+                  {cloudInfo.label}
+                </span>
+              </div>
+
+              {/* 2. Opady */}
+              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
+                <div className="flex items-center gap-1 text-cyan-400">
+                  <Droplets size={9} className="text-cyan-400 shrink-0" />
+                  <span className="text-[7.5px] font-bold uppercase tracking-wider text-zinc-400 truncate">Opady</span>
+                </div>
+                <span data-hud="precip-amt" className="text-[10px] font-black text-cyan-300 tabular-nums my-0.5">
+                  {activeHour.precipAmount > 0 ? `${activeHour.precipAmount.toFixed(1)} mm` : '0.0 mm'}
+                </span>
+                <span data-hud="precip-prob" className="text-[7px] text-cyan-300/90 font-medium truncate leading-none tabular-nums">
+                  {activeHour.precipProb}% szans
+                </span>
+              </div>
+
+              {/* 3. Wiatr i porywy */}
+              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
+                <div className="flex items-center gap-1 text-emerald-400">
+                  <Wind size={9} className="text-emerald-400 shrink-0" />
+                  <span className="text-[7.5px] font-bold uppercase tracking-wider text-zinc-400 truncate">Wiatr</span>
+                </div>
+                <div className="flex items-center gap-0.5 my-0.5 leading-none">
+                  <ArrowUp
+                    data-hud="wind-arrow"
+                    size={8}
+                    style={{ transform: `rotate(${activeHour.windDir + 180}deg)` }}
+                    className="text-emerald-400 shrink-0"
+                    strokeWidth={3}
+                  />
+                  <span className="text-[10px] font-black text-emerald-300 tabular-nums truncate">
+                    <span data-hud="wind-speed">{activeHour.windSpeed}</span> <span className="text-[7px] font-normal text-zinc-400">km/h</span>
+                  </span>
+                </div>
+                <span data-hud="gust" className="text-[7px] text-emerald-400/90 font-medium truncate leading-none tabular-nums">
+                  por. {activeHour.windGusts} km/h
+                </span>
+              </div>
+
+              {/* 4. Warunki / Wilgotność / Ciśnienie */}
+              <div className="flex flex-col justify-between p-1 rounded-lg bg-white/[0.04] border border-white/5 min-w-0">
+                <div className="flex items-center gap-1 text-amber-400">
+                  <Gauge size={9} className="text-amber-400 shrink-0" />
+                  <span className="text-[7.5px] font-bold uppercase tracking-wider text-zinc-400 truncate">Warunki</span>
+                </div>
+                <span className="text-[10px] font-black text-zinc-100 tabular-nums my-0.5">
+                  <span data-hud="humidity">{activeHour.humidity}%</span> <span className="text-[7px] font-normal text-zinc-400">wilg.</span>
+                </span>
+                <span data-hud="pressure" className="text-[7px] text-zinc-300/90 font-medium truncate leading-none tabular-nums">
+                  {activeHour.pressure} hPa{activeHour.uvIndex > 0 ? ` · UV ${activeHour.uvIndex}` : ''}
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Main Scrollable Track (Both charts fit with maximum panoramic width) */}
       <div
         ref={scrollContainerRef}
@@ -1060,245 +1236,7 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
           style={{ width: `${chartWidth}px`, minWidth: '100%' }}
           className="h-full flex flex-col gap-0"
         >
-          {/* Lightweight Floating Cursor Pill HUD (glides directly along the active guide line) */}
-          {activeHourIdx !== null && (() => {
-            const activeHour = hours[activeHourIdx];
-            if (!activeHour) return null;
-            const hourTitle = activeHour.isCurrent ? 'Teraz' : `${activeHour.hourNum.toString().padStart(2, '0')}:00`;
-
-            return (
-              <div
-                ref={hudRef}
-                style={{
-                  left: `${activeHourIdx * colWidth + colWidth / 2}px`,
-                  transform: 'translateX(-50%)',
-                }}
-                className={`absolute top-[23px] z-50 px-3 py-1 rounded-full bg-zinc-950/92 border border-cyan-400/60 backdrop-blur-2xl shadow-[0_8px_28px_rgba(0,0,0,0.9)] flex items-center gap-2.5 transition-all duration-150 ease-out select-none pointer-events-auto whitespace-nowrap ${
-                  isClosing ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100 animate-in fade-in-0'
-                }`}
-              >
-                {/* Downward pointer caret towards active vertical line */}
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-x-[4px] border-x-transparent border-t-[5px] border-t-cyan-400/80 pointer-events-none" />
-
-                {/* Hour Badge */}
-                <span
-                  data-hud="hour-title"
-                  className="px-1.5 py-0.5 rounded-full bg-cyan-500/25 border border-cyan-400/40 text-[9px] font-mono font-black text-cyan-300 uppercase tracking-wider"
-                >
-                  {hourTitle}
-                </span>
-
-                {/* Weather Icon */}
-                <WeatherIcon code={activeHour.weathercode} isDay={activeHour.isDay} size={15} glow={false} />
-
-                {/* Temperature & Apparent */}
-                <div className="flex items-baseline gap-1">
-                  <strong data-hud="temp" className="text-xs font-black text-white">{activeHour.temp}°</strong>
-                  <span data-hud="apparent" className="text-[8px] text-zinc-400 font-medium">odcz. {activeHour.apparentTemp}°</span>
-                </div>
-
-                <div className="w-px h-3.5 bg-white/15" />
-
-                {/* Wind & Gusts */}
-                <div className="flex items-center gap-1 text-[8.5px] text-emerald-300 font-medium">
-                  <Wind size={10} className="text-emerald-400 shrink-0" />
-                  <span className="font-bold tabular-nums">
-                    <span data-hud="wind-speed">{activeHour.windSpeed} </span><span data-hud="wind-unit" className="text-[7.5px] font-normal text-zinc-400">km/h</span>
-                  </span>
-                  <span data-hud="gust" className="text-[7.5px] text-emerald-400/80 font-normal tabular-nums">
-                    por. {activeHour.windGusts}
-                  </span>
-                </div>
-
-                <div className="w-px h-3.5 bg-white/15" />
-
-                {/* Precipitation */}
-                <div className="flex items-center gap-1 text-[8.5px] text-cyan-300 font-medium">
-                  <Droplets size={10} className="text-cyan-400 shrink-0" />
-                  <span data-hud="precip-amt" className="font-bold tabular-nums">
-                    {activeHour.precipAmount > 0 ? `${activeHour.precipAmount.toFixed(1)} mm` : '0.0 mm'}
-                  </span>
-                  <span data-hud="precip-prob" className="text-[7.5px] text-cyan-300/80 font-normal tabular-nums">
-                    {activeHour.precipProb}%
-                  </span>
-                </div>
-
-                <div className="w-px h-3.5 bg-white/15" />
-
-                {/* Sun / Moon celestial info */}
-                <div className="flex items-center gap-1 text-[8.5px] text-amber-300 font-medium">
-                  {activeHour.isDay ? <Sun size={10} className="text-amber-400 shrink-0" /> : <Moon size={10} className="text-indigo-400 shrink-0" />}
-                  <span
-                    data-hud="sun"
-                    className="font-bold tabular-nums"
-                  >
-                    {activeHour.isDay ? `${activeHour.sunPercent}%` : `${getMoonPhaseInfo(activeHour.date).percent}%`}
-                  </span>
-                </div>
-
-                {/* Hidden tags for DOM selector compatibility */}
-                <span data-hud="day-night" className="hidden" />
-                <span data-hud="celestial-title" className="hidden" />
-                <span data-hud="cloud-label" className="hidden" />
-                <span data-hud="humidity" className="hidden" />
-                <span data-hud="pressure" className="hidden" />
-                <span data-hud="wind-arrow" className="hidden" />
-
-                {/* Close button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    closeHud();
-                  }}
-                  className="w-4 h-4 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-zinc-400 hover:text-white transition cursor-pointer ml-0.5 shrink-0"
-                  title="Zamknij"
-                >
-                  <X size={8} strokeWidth={2.5} />
-                </button>
-              </div>
-            );
-          })()}
-
-          {/* Single-Row Timeline (compact ~21px, seamlessly fused to charts below) */}
-          <div
-            className="shrink-0 h-[21px] relative overflow-hidden rounded-t-xl rounded-b-none border-t border-x border-b border-white/10 select-none bg-zinc-950/75 shadow-xs"
-            style={{ width: `${chartWidth}px` }}
-          >
-            {/* Exact Day and Night Background Bands on the timeline */}
-            <div className="absolute inset-0 flex pointer-events-none">
-              {exactDayNightSpans.map((span, idx) => (
-                <div
-                  key={`time-span-${idx}`}
-                  style={{
-                    position: 'absolute',
-                    left: `${span.startX}px`,
-                    width: `${span.width}px`,
-                    height: '100%',
-                  }}
-                  className={`border-b transition-colors ${
-                    span.isDay
-                      ? 'bg-gradient-to-r from-amber-500/20 via-amber-400/15 to-amber-500/20 border-amber-400/40'
-                      : 'bg-gradient-to-r from-indigo-950/85 via-slate-950/90 to-indigo-950/85 border-indigo-400/30'
-                  }`}
-                />
-              ))}
-            </div>
-
-            {/* Twilight / Golden Hour spans on timeline */}
-            {twilightSpans.map((tw, idx) => (
-              <div
-                key={`time-twilight-${idx}`}
-                style={{
-                  position: 'absolute',
-                  left: `${tw.startX}px`,
-                  width: `${tw.width}px`,
-                  height: '100%',
-                }}
-                className={`pointer-events-none ${
-                  tw.type === 'sunrise'
-                    ? 'bg-gradient-to-r from-transparent via-rose-500/40 via-amber-400/45 to-transparent'
-                    : 'bg-gradient-to-r from-transparent via-amber-400/40 via-orange-500/50 to-transparent'
-                }`}
-              />
-            ))}
-
-            {/* Exact Sunrise / Sunset vertical dashed lines on timeline */}
-            {sunEvents.map((event, idx) => (
-              <div
-                key={`time-sun-${idx}`}
-                style={{ left: `${event.x}px` }}
-                className={`absolute top-0 bottom-0 w-px border-l border-dashed pointer-events-none z-10 ${
-                  event.type === 'sunrise' ? 'border-amber-400/80' : 'border-orange-400/80'
-                }`}
-              />
-            ))}
-
-            {/* Scrub highlight overlay (ref-based for perf) */}
-            <div
-              ref={timelineHighlightRef}
-              className="absolute top-0 bottom-0 bg-cyan-500/35 border border-cyan-400 z-30 shadow-[0_0_8px_rgba(34,211,238,0.6)] rounded-sm pointer-events-none"
-              style={{
-                display: activeHourIdx !== null && isScrubbing ? '' : 'none',
-                left: activeHourIdx !== null ? `${activeHourIdx * colWidth}px` : 0,
-                width: `${colWidth}px`,
-              }}
-            />
-
-            {/* Single-Row Grid of Hours with centered date labels */}
-            <div
-              className="absolute inset-0 grid items-center text-center"
-              style={{ gridTemplateColumns: `repeat(${hours.length}, ${colWidth}px)` }}
-            >
-              {hours.map((h, i) => {
-                const isSelected = activeHourIdx === i;
-                const isStep = isStepColumn(h, i);
-                const curHourObj = hours.find((x) => x.isCurrent);
-                const isToday = curHourObj && h.date.toDateString() === curHourObj.date.toDateString();
-                const curHNum = curHourObj?.hourNum ?? -99;
-                // If current hour is near 12 on today, shift date badge to 16:00 to avoid overlapping "Teraz"
-                const targetHour = isToday && Math.abs(curHNum - 12) <= 2 ? 16 : 12;
-                const showDateLabel = h.hourNum === targetHour;
-                // Leave 1 hour before and after clean for centered date badge
-                const isNearDateLabel = Math.abs(h.hourNum - targetHour) <= 1;
-                const showLabel = !isNearDateLabel && (isStep || h.isCurrent || isSelected);
-
-                // Format: "Pt 11.09" (Compact format so it fits cleanly in single row)
-                const dayCap = h.dayName.charAt(0).toUpperCase() + h.dayName.slice(1).replace('.', '');
-                const dateLabel = showDateLabel
-                  ? `${dayCap} ${h.date.getDate().toString().padStart(2, '0')}.${(h.date.getMonth() + 1).toString().padStart(2, '0')}`
-                  : '';
-
-                return (
-                  <div
-                    key={h.idx}
-                    data-testid={`hour-btn-${i}`}
-                    className="flex items-center justify-center h-full relative cursor-pointer"
-                    onClick={() => openOrUpdateHud(i)}
-                  >
-                    {/* Active selection outline */}
-                    {isSelected && (
-                      <div className="absolute inset-0 bg-cyan-500/35 border border-cyan-400 z-20 shadow-[0_0_8px_rgba(34,211,238,0.6)] rounded-sm" />
-                    )}
-                    {h.isCurrent && !isSelected && (
-                      <div className="absolute inset-0 bg-blue-500/20 border-b-2 border-blue-400 z-10 rounded-sm" />
-                    )}
-
-                    {/* Centered Date Label at hour 12 (Single Row, clean, rain sum moved to precipitation) */}
-                    {showDateLabel && (
-                      <div
-                        className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap z-25 flex items-center px-2 py-0.5 rounded-md bg-zinc-950/85 border border-amber-400/40 text-[8px] font-mono tracking-wide leading-none backdrop-blur-md shadow-xs pointer-events-none"
-                      >
-                        <span className="font-black text-amber-200">{dateLabel}</span>
-                      </div>
-                    )}
-
-                    {/* Standard hour label */}
-                    <span
-                      className={`font-mono tabular-nums leading-none z-20 ${
-                        isSelected
-                          ? 'text-white font-black text-[9px]'
-                          : h.isCurrent
-                          ? 'text-cyan-300 font-black text-[8px]'
-                          : showLabel
-                          ? h.isDay
-                            ? 'text-amber-100 font-bold text-[8px]'
-                            : 'text-blue-100 font-medium text-[8px]'
-                          : 'text-zinc-500/50 text-[6px]'
-                      }`}
-                    >
-                      {h.isCurrent
-                        ? 'Teraz'
-                        : isNearDateLabel
-                        ? ''
-                        : showLabel
-                        ? h.hourNum.toString().padStart(2, '0')
-                        : '·'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          {/* HUD MOVED TO ROOT */}
 
           {/* WYKRES 1: TEMPERATURA & OPADY (flex-1, seamless middle panel) */}
           <div className="flex-1 min-h-0 rounded-none border-x border-b border-white/10 bg-zinc-900/40 py-1 flex flex-col relative shadow-none">
@@ -1914,6 +1852,147 @@ export function LandscapeChart({ city, weather, onClose }: LandscapeChartProps) 
                   );
                 })}
               </svg>
+            </div>
+          </div>
+
+          {/* Single-Row Timeline (compact ~21px, seamlessly fused to charts) MOVED TO CENTER */}
+          <div
+            className="shrink-0 h-[21px] relative overflow-hidden border-x border-b border-white/10 select-none bg-zinc-900/55 shadow-md backdrop-blur-xl z-20"
+            style={{ width: `${chartWidth}px` }}
+          >
+            {/* Exact Day and Night Background Bands on the timeline */}
+            <div className="absolute inset-0 flex pointer-events-none">
+              {exactDayNightSpans.map((span, idx) => (
+                <div
+                  key={`time-span-${idx}`}
+                  style={{
+                    position: 'absolute',
+                    left: `${span.startX}px`,
+                    width: `${span.width}px`,
+                    height: '100%',
+                  }}
+                  className={`border-b transition-colors ${
+                    span.isDay
+                      ? 'bg-gradient-to-r from-amber-500/20 via-amber-400/15 to-amber-500/20 border-amber-400/40'
+                      : 'bg-gradient-to-r from-indigo-950/85 via-slate-950/90 to-indigo-950/85 border-indigo-400/30'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* Twilight / Golden Hour spans on timeline */}
+            {twilightSpans.map((tw, idx) => (
+              <div
+                key={`time-twilight-${idx}`}
+                style={{
+                  position: 'absolute',
+                  left: `${tw.startX}px`,
+                  width: `${tw.width}px`,
+                  height: '100%',
+                }}
+                className={`pointer-events-none ${
+                  tw.type === 'sunrise'
+                    ? 'bg-gradient-to-r from-transparent via-rose-500/40 via-amber-400/45 to-transparent'
+                    : 'bg-gradient-to-r from-transparent via-amber-400/40 via-orange-500/50 to-transparent'
+                }`}
+              />
+            ))}
+
+            {/* Exact Sunrise / Sunset vertical dashed lines on timeline */}
+            {sunEvents.map((event, idx) => (
+              <div
+                key={`time-sun-${idx}`}
+                style={{ left: `${event.x}px` }}
+                className={`absolute top-0 bottom-0 w-px border-l border-dashed pointer-events-none z-10 ${
+                  event.type === 'sunrise' ? 'border-amber-400/80' : 'border-orange-400/80'
+                }`}
+              />
+            ))}
+
+            {/* Scrub highlight overlay (ref-based for perf) */}
+            <div
+              ref={timelineHighlightRef}
+              className="absolute top-0 bottom-0 bg-cyan-500/35 border border-cyan-400 z-30 shadow-[0_0_8px_rgba(34,211,238,0.6)] rounded-sm pointer-events-none"
+              style={{
+                display: activeHourIdx !== null && isScrubbing ? '' : 'none',
+                left: activeHourIdx !== null ? `${activeHourIdx * colWidth}px` : 0,
+                width: `${colWidth}px`,
+              }}
+            />
+
+            {/* Single-Row Grid of Hours with centered date labels */}
+            <div
+              className="absolute inset-0 grid items-center text-center"
+              style={{ gridTemplateColumns: `repeat(${hours.length}, ${colWidth}px)` }}
+            >
+              {hours.map((h, i) => {
+                const isSelected = activeHourIdx === i;
+                const isStep = isStepColumn(h, i);
+                const curHourObj = hours.find((x) => x.isCurrent);
+                const isToday = curHourObj && h.date.toDateString() === curHourObj.date.toDateString();
+                const curHNum = curHourObj?.hourNum ?? -99;
+                // If current hour is near 12 on today, shift date badge to 16:00 to avoid overlapping "Teraz"
+                const targetHour = isToday && Math.abs(curHNum - 12) <= 2 ? 16 : 12;
+                const showDateLabel = h.hourNum === targetHour;
+                // Leave 1 hour before and after clean for centered date badge
+                const isNearDateLabel = Math.abs(h.hourNum - targetHour) <= 1;
+                const showLabel = !isNearDateLabel && (isStep || h.isCurrent || isSelected);
+
+                // Format: "Pt 11.09" (Compact format so it fits cleanly in single row)
+                const dayCap = h.dayName.charAt(0).toUpperCase() + h.dayName.slice(1).replace('.', '');
+                const dateLabel = showDateLabel
+                  ? `${dayCap} ${h.date.getDate().toString().padStart(2, '0')}.${(h.date.getMonth() + 1).toString().padStart(2, '0')}`
+                  : '';
+
+                return (
+                  <div
+                    key={h.idx}
+                    data-testid={`hour-btn-${i}`}
+                    className="flex items-center justify-center h-full relative cursor-pointer"
+                    onClick={() => openOrUpdateHud(i)}
+                  >
+                    {/* Active selection outline */}
+                    {isSelected && (
+                      <div className="absolute inset-0 bg-cyan-500/35 border border-cyan-400 z-20 shadow-[0_0_8px_rgba(34,211,238,0.6)] rounded-sm" />
+                    )}
+                    {h.isCurrent && !isSelected && (
+                      <div className="absolute inset-0 bg-blue-500/20 border-b-2 border-blue-400 z-10 rounded-sm" />
+                    )}
+
+                    {/* Centered Date Label at hour 12 (Single Row, clean, rain sum moved to precipitation) */}
+                    {showDateLabel && (
+                      <div
+                        className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap z-25 flex items-center px-2 py-0.5 rounded-md bg-zinc-950/85 border border-amber-400/40 text-[8px] font-mono tracking-wide leading-none backdrop-blur-md shadow-xs pointer-events-none"
+                      >
+                        <span className="font-black text-amber-200">{dateLabel}</span>
+                      </div>
+                    )}
+
+                    {/* Standard hour label */}
+                    <span
+                      className={`font-mono tabular-nums leading-none z-20 ${
+                        isSelected
+                          ? 'text-white font-black text-[9px]'
+                          : h.isCurrent
+                          ? 'text-cyan-300 font-black text-[8px]'
+                          : showLabel
+                          ? h.isDay
+                            ? 'text-amber-100 font-bold text-[8px]'
+                            : 'text-blue-100 font-medium text-[8px]'
+                          : 'text-zinc-500/50 text-[6px]'
+                      }`}
+                    >
+                      {h.isCurrent
+                        ? 'Teraz'
+                        : isNearDateLabel
+                        ? ''
+                        : showLabel
+                        ? h.hourNum.toString().padStart(2, '0')
+                        : '·'}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
