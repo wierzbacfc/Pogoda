@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pogoda-pwa-v28';
+const CACHE_NAME = 'pogoda-pwa-v29';
 
 const STATIC_ASSETS = [
   './',
@@ -24,6 +24,7 @@ const STATIC_ASSETS = [
 
 // Install: cache static assets into the new cache
 self.addEventListener('install', (event) => {
+  self.skipWaiting(); // Automatically take over immediately
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
