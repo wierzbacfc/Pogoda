@@ -179,7 +179,6 @@ function getSmoothWindColor(speed: number): string {
 export function LandscapeChart({ city, weather, onClose, isManualOpen = false }: LandscapeChartProps) {
   const days = 7;
   const [activeHourIdx, setActiveHourIdx] = useState<number | null>(null);
-  const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
   const [isScrubbing, setIsScrubbing] = useState<boolean>(false);
   const [isClosing, setIsClosing] = useState<boolean>(false);
 
@@ -204,8 +203,6 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
   const highlightLine2Ref = useRef<SVGLineElement>(null);
   const timelineHighlightRef = useRef<HTMLDivElement>(null);
   const hudAnchorRef = useRef<'left' | 'right'>('right');
-  const isProgrammaticScrollRef = useRef(false);
-  const programmaticScrollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // === Panel Height Synchronization: Eliminates vertical SVG aspect ratio distortion ===
   const panelRef = useRef<HTMLDivElement>(null);
@@ -340,16 +337,15 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
     return { hours: list, curIdx: currentIdx, currentHourArrayIdx: currentHourInArray };
   }, [weather, days]);
 
-  // Compute day-level summaries: Tmin, Tmax indices, precipitation sums, and jumper metadata
-  const { daySummaryMap, dayMaxIndices, dayMinIndices, dayJumperDays, timelineDaySpans } = useMemo(() => {
+  // Compute day-level summaries: Tmin, Tmax indices, precipitation sums, and timeline metadata
+  const { daySummaryMap, dayMaxIndices, dayMinIndices, timelineDaySpans } = useMemo(() => {
     const summaryMap = new Map<string, { maxTempIdx: number; minTempIdx: number; precipSum: number; firstHourIdx: number; date: Date; dayName: string }>();
     const maxIndices = new Set<number>();
     const minIndices = new Set<number>();
-    const jumperList: { dayKey: string; label: string; firstHourIdx: number; date: Date }[] = [];
     const timelineSpans: { dayKey: string; label: string; firstHourIdx: number; hourCount: number }[] = [];
 
     if (hours.length === 0) {
-      return { daySummaryMap: summaryMap, dayMaxIndices: maxIndices, dayMinIndices: minIndices, dayJumperDays: jumperList, timelineDaySpans: timelineSpans };
+      return { daySummaryMap: summaryMap, dayMaxIndices: maxIndices, dayMinIndices: minIndices, timelineDaySpans: timelineSpans };
     }
 
     // Group hours by dayKey
@@ -388,13 +384,6 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
         dayName: capDayName,
       });
 
-      jumperList.push({
-        dayKey: dKey,
-        label: dayCount === 0 ? 'Dziś' : capDayName,
-        firstHourIdx: indices[0],
-        date: firstH.date,
-      });
-
       const dayDateStr = `${firstH.date.getDate().toString().padStart(2, '0')}.${(firstH.date.getMonth() + 1).toString().padStart(2, '0')}`;
       timelineSpans.push({
         dayKey: dKey,
@@ -406,7 +395,7 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
       dayCount++;
     });
 
-    return { daySummaryMap: summaryMap, dayMaxIndices: maxIndices, dayMinIndices: minIndices, dayJumperDays: jumperList, timelineDaySpans: timelineSpans };
+    return { daySummaryMap: summaryMap, dayMaxIndices: maxIndices, dayMinIndices: minIndices, timelineDaySpans: timelineSpans };
   }, [hours]);
 
   // Aggregate stats
@@ -461,8 +450,8 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
   const atmosphereStops = useMemo(() => {
     if (sunEvents.length === 0 || hours.length === 0) return [];
     const totalW = hours.length * colWidth;
-    // Silky smooth atmospheric transition (~2.2 hours = ~48px) for completely seamless sky blending
-    const blendPx = colWidth * 2.2;
+    // Sharp, aggressive atmospheric transition (~0.35 hours = ~8px) for distinct, high-contrast day/night separation
+    const blendPx = colWidth * 0.35;
 
     interface Stop {
       offset: number;
@@ -476,9 +465,9 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
 
     // High-contrast, radiant sky palette:
     // Night: Deep obsidian midnight
-    // Day: Vibrant luminous cerulean daylight sky
+    // Day: Vibrant luminous daytime sky blue (evoking clear sunny daylight, matching DynamicBackground)
     const nightColor = '#020617';
-    const dayColor = '#0d558c';
+    const dayColor = '#1e88e5';
     const nightOpacity = 0.98;
     const dayOpacity = 0.92;
 
@@ -499,17 +488,17 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
       if (isSunrise) {
         // NIGHT -> DAWN -> DAY: pure, natural monochromatic sky progression
         stops.push({ offset: startPct, color: nightColor, opacity: nightOpacity });
-        stops.push({ offset: Math.max(0, eventPct - blendPct * 0.50), color: '#041830', opacity: 0.96 });
-        stops.push({ offset: eventPct, color: '#072a4d', opacity: 0.94 });
-        stops.push({ offset: Math.min(100, eventPct + blendPct * 0.50), color: '#0a3d68', opacity: 0.93 });
+        stops.push({ offset: Math.max(0, eventPct - blendPct * 0.50), color: '#072242', opacity: 0.96 });
+        stops.push({ offset: eventPct, color: '#0c437a', opacity: 0.94 });
+        stops.push({ offset: Math.min(100, eventPct + blendPct * 0.50), color: '#1363b3', opacity: 0.93 });
         stops.push({ offset: endPct, color: dayColor, opacity: dayOpacity });
         currentPhase = 'day';
       } else {
         // DAY -> DUSK -> NIGHT: pure, natural monochromatic sky progression
         stops.push({ offset: startPct, color: dayColor, opacity: dayOpacity });
-        stops.push({ offset: Math.max(0, eventPct - blendPct * 0.50), color: '#0a3d68', opacity: 0.93 });
-        stops.push({ offset: eventPct, color: '#072a4d', opacity: 0.94 });
-        stops.push({ offset: Math.min(100, eventPct + blendPct * 0.50), color: '#041830', opacity: 0.96 });
+        stops.push({ offset: Math.max(0, eventPct - blendPct * 0.50), color: '#1363b3', opacity: 0.93 });
+        stops.push({ offset: eventPct, color: '#0c437a', opacity: 0.94 });
+        stops.push({ offset: Math.min(100, eventPct + blendPct * 0.50), color: '#072242', opacity: 0.96 });
         stops.push({ offset: endPct, color: nightColor, opacity: nightOpacity });
         currentPhase = 'night';
       }
@@ -1281,7 +1270,6 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
       if (autoDismissTimerRef.current) clearTimeout(autoDismissTimerRef.current);
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
       if (autoScrollRafRef.current) cancelAnimationFrame(autoScrollRafRef.current);
-      if (programmaticScrollTimerRef.current) clearTimeout(programmaticScrollTimerRef.current);
     };
   }, []);
 
@@ -1414,56 +1402,14 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
           : undefined
       }
     >
-      {/* Feature 7: Day Jumper - Floating horizontal thumb navigation bar matching main app styling */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-1.5 p-1.5 rounded-2xl bg-gradient-to-b from-zinc-900/90 via-zinc-950/90 to-zinc-950/95 backdrop-blur-2xl border border-white/15 shadow-[0_12px_36px_rgba(0,0,0,0.85)] pointer-events-auto select-none overflow-hidden">
-        {/* Subtle specular rim light on top of the deck */}
-        <div className="absolute top-0 inset-x-3 h-[1px] bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
-        {dayJumperDays.map((d, idx) => {
-          return (
-            <button
-              key={d.dayKey}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (scrollContainerRef.current) {
-                  // For Day 0 ("Dziś"): scroll so current hour is pleasantly in view (~50px margin), or start of day if early
-                  // For subsequent days: scroll so 00:00 of that day starts right at the beginning of the panoramic view
-                  const targetX = idx === 0 && currentHourArrayIdx >= 0
-                    ? Math.max(0, currentHourArrayIdx * colWidth - 50)
-                    : Math.max(0, d.firstHourIdx * colWidth - 12);
-
-                  isProgrammaticScrollRef.current = true;
-                  setActiveDayIndex(idx);
-                  scrollContainerRef.current.scrollTo({ left: targetX, behavior: 'smooth' });
-
-                  if (programmaticScrollTimerRef.current) clearTimeout(programmaticScrollTimerRef.current);
-                  programmaticScrollTimerRef.current = setTimeout(() => {
-                    isProgrammaticScrollRef.current = false;
-                  }, 650);
-                }
-              }}
-              className={`relative flex items-center justify-center min-w-[38px] px-2.5 py-1.5 rounded-xl text-[10px] font-bold font-mono transition-all duration-150 cursor-pointer active:scale-95 ${
-                activeDayIndex === idx
-                  ? 'bg-gradient-to-b from-amber-500/35 via-amber-500/20 to-amber-950/40 text-amber-200 border border-amber-400/60 shadow-[0_2px_14px_rgba(245,158,11,0.3)] ring-1 ring-amber-400/30'
-                  : 'bg-white/[0.05] hover:bg-white/[0.09] text-zinc-400 hover:text-zinc-200 border border-white/10'
-              }`}
-            >
-              {activeDayIndex === idx && (
-                <div className="absolute top-0 inset-x-2 h-[1px] bg-gradient-to-r from-transparent via-amber-300/80 to-transparent pointer-events-none" />
-              )}
-              <span>{d.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Floating Close Button (Landscape Locked) */}
-      <div className="absolute top-2 right-2 z-[60] flex items-center pointer-events-auto">
+      {/* Floating Close Button (Landscape Locked) - aligned with top timeline bar */}
+      <div className="absolute top-1.5 right-2 z-[60] flex items-center pointer-events-auto">
         <button
           onClick={onClose}
-          className="flex items-center justify-center w-8 h-8 rounded-full shadow-lg bg-zinc-900/70 hover:bg-zinc-800/90 backdrop-blur-xl border border-white/15 text-zinc-200 hover:text-white active:scale-95 transition-all cursor-pointer"
+          className="flex items-center justify-center w-[26px] h-[26px] rounded-lg shadow-lg bg-zinc-950/80 hover:bg-zinc-800/90 backdrop-blur-xl border border-white/20 text-zinc-300 hover:text-white active:scale-95 transition-all cursor-pointer"
           title="Zamknij (Esc)"
         >
-          <X size={16} />
+          <X size={14} />
         </button>
       </div>
 
@@ -1727,29 +1673,143 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
         ref={scrollContainerRef}
         id="landscapeChartScrollContainer"
         onMouseDown={handleMouseDown}
-        onScroll={(e) => {
-          if (isProgrammaticScrollRef.current) return;
-          const scrollLeft = e.currentTarget.scrollLeft;
-          const containerW = e.currentTarget.clientWidth || window.innerWidth;
-          const focusHourIdx = Math.min(
-            hours.length - 1,
-            Math.max(0, Math.floor((scrollLeft + Math.min(180, containerW * 0.25)) / colWidth))
-          );
-          const focusDayKey = hours[focusHourIdx]?.dayKey;
-          if (focusDayKey) {
-            const matchedIdx = dayJumperDays.findIndex((d) => d.dayKey === focusDayKey);
-            if (matchedIdx >= 0) {
-              setActiveDayIndex(matchedIdx);
-            }
-          }
-        }}
-        className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden px-2 pt-1.5 pb-5 flex flex-col [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full touch-pan-x cursor-ew-resize pr-10"
+        className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden px-2 pt-1.5 pb-1.5 flex flex-col [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full touch-pan-x cursor-ew-resize pr-10"
       >
         <div
           style={{ width: `${chartWidth}px`, minWidth: '100%' }}
           className="h-full flex flex-col gap-0"
         >
           {/* HUD MOVED TO ROOT */}
+
+          {/* Two-Row Timeline (height ~26px: upper row for day/date, lower row for aligned hours baseline) - MOVED TO TOP */}
+          <div
+            className="shrink-0 h-[26px] relative overflow-hidden rounded-t-xl border-x border-t border-b border-white/10 select-none bg-zinc-900/55 shadow-md backdrop-blur-xl z-20"
+            style={{ width: `${chartWidth}px` }}
+          >
+            {/* Seamless Atmosphere Background on Timeline */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none select-none" viewBox={`0 0 ${chartWidth} 26`} preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="landscapeAtmosphereGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  {atmosphereStops.map((st, i) => (
+                    <stop
+                      key={`atm-stop-1-${i}`}
+                      offset={`${st.offset.toFixed(2)}%`}
+                      stopColor={st.color}
+                      stopOpacity={st.opacity}
+                    />
+                  ))}
+                </linearGradient>
+              </defs>
+              <rect x="0" y="0" width={chartWidth} height={26} fill="url(#landscapeAtmosphereGrad)" />
+              {/* Horizontal line separating Day Header from Hour Numbers */}
+              <line x1={0} y1={10.5} x2={chartWidth} y2={10.5} stroke="rgba(255, 255, 255, 0.08)" strokeWidth="0.75" />
+              <line x1={0} y1={25.5} x2={chartWidth} y2={25.5} stroke="rgba(255, 255, 255, 0.10)" strokeWidth="1" />
+              {exactDayNightSpans.map((span, sIdx) => {
+                if (!span.isDay) return null;
+                return (
+                  <line
+                    key={`time-day-rim-${sIdx}`}
+                    x1={span.startX}
+                    y1={25.5}
+                    x2={span.endX}
+                    y2={25.5}
+                    stroke="rgba(251, 191, 36, 0.75)"
+                    strokeWidth="1.5"
+                  />
+                );
+              })}
+            </svg>
+
+            {/* Exact Sunrise / Sunset vertical dashed lines on timeline */}
+            {sunEvents.map((event, idx) => (
+              <div
+                key={`time-sun-${idx}`}
+                style={{ left: `${event.x}px` }}
+                className={`absolute top-0 bottom-0 w-px border-l border-dashed pointer-events-none z-10 ${
+                  event.type === 'sunrise' ? 'border-amber-400/80' : 'border-orange-400/80'
+                }`}
+              />
+            ))}
+
+            {/* Scrub highlight overlay (ref-based for perf) */}
+            <div
+              ref={timelineHighlightRef}
+              className="absolute top-0 bottom-0 bg-cyan-500/35 border border-cyan-400 z-30 shadow-[0_0_8px_rgba(34,211,238,0.6)] rounded-sm pointer-events-none"
+              style={{
+                display: activeHourIdx !== null && isScrubbing ? '' : 'none',
+                left: activeHourIdx !== null ? `${activeHourIdx * colWidth}px` : 0,
+                width: `${colWidth}px`,
+              }}
+            />
+
+            {/* UPPER ROW: Fixed Day Headers spanning across 24h of each day */}
+            <div className="absolute top-0 inset-x-0 h-[10.5px] pointer-events-none select-none">
+              {timelineDaySpans.map((span) => (
+                <div
+                  key={`timeline-dayspan-${span.dayKey}`}
+                  style={{
+                    left: `${span.firstHourIdx * colWidth}px`,
+                    width: `${span.hourCount * colWidth}px`,
+                  }}
+                  className="absolute top-0 h-[10.5px] flex items-center justify-center border-r border-white/10"
+                >
+                  <span className="text-[7.5px] font-mono font-black text-amber-200/90 tracking-wider uppercase leading-none truncate px-1">
+                    {span.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* LOWER ROW: Unobstructed, fully legible Hour Numbers */}
+            <div
+              className="absolute bottom-0 inset-x-0 h-[15.5px] grid items-center text-center"
+              style={{ gridTemplateColumns: `repeat(${hours.length}, ${colWidth}px)` }}
+            >
+              {hours.map((h, i) => {
+                const isSelected = activeHourIdx === i;
+                const isStep = isStepColumn(h, i);
+                const showLabel = isStep || h.isCurrent || isSelected;
+
+                return (
+                  <div
+                    key={h.idx}
+                    data-testid={`hour-btn-${i}`}
+                    className="flex items-center justify-center h-full relative cursor-pointer"
+                    onClick={() => openOrUpdateHud(i)}
+                  >
+                    {/* Active selection outline */}
+                    {isSelected && (
+                      <div className="absolute inset-0 bg-cyan-500/35 border border-cyan-400 z-20 shadow-[0_0_8px_rgba(34,211,238,0.6)] rounded-sm" />
+                    )}
+                    {h.isCurrent && !isSelected && (
+                      <div className="absolute inset-0 bg-blue-500/20 border-b-2 border-blue-400 z-10 rounded-sm" />
+                    )}
+
+                    {/* Standard hour label - never occluded or hidden */}
+                    <span
+                      className={`font-mono tabular-nums leading-none z-20 ${
+                        isSelected
+                          ? 'text-white font-black text-[9px]'
+                          : h.isCurrent
+                          ? 'text-cyan-300 font-black text-[8px]'
+                          : showLabel
+                          ? h.isDay
+                            ? 'text-amber-100 font-bold text-[8px]'
+                            : 'text-blue-100 font-medium text-[8px]'
+                          : 'text-zinc-500/50 text-[6px]'
+                      }`}
+                    >
+                      {h.isCurrent
+                        ? 'Teraz'
+                        : showLabel
+                        ? h.hourNum.toString().padStart(2, '0')
+                        : '·'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
           {/* WYKRES 1: TEMPERATURA & OPADY (flex-1, seamless middle panel) */}
           <div className="flex-1 min-h-0 rounded-none border-x border-b border-white/10 bg-zinc-900/40 py-1 flex flex-col relative shadow-none">
@@ -1840,10 +1900,10 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
 
                   {/* Vertical Atmospheric Sky Depth Gradient */}
                   <linearGradient id="landscapeVerticalDepthGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.20" />
-                    <stop offset="35%" stopColor="#0284c7" stopOpacity="0.08" />
-                    <stop offset="75%" stopColor="#000000" stopOpacity="0.15" />
-                    <stop offset="100%" stopColor="#000000" stopOpacity="0.45" />
+                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.22" />
+                    <stop offset="35%" stopColor="#0284c7" stopOpacity="0.10" />
+                    <stop offset="75%" stopColor="#000000" stopOpacity="0.08" />
+                    <stop offset="100%" stopColor="#000000" stopOpacity="0.25" />
                   </linearGradient>
                 </defs>
 
@@ -2447,124 +2507,6 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
             </div>
           </div>
 
-          {/* Two-Row Timeline (height ~26px: upper row for day/date, lower row for aligned hours baseline) */}
-          <div
-            className="shrink-0 h-[26px] relative overflow-hidden border-x border-b border-white/10 select-none bg-zinc-900/55 shadow-md backdrop-blur-xl z-20"
-            style={{ width: `${chartWidth}px` }}
-          >
-            {/* Seamless Atmosphere Background on Timeline */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none select-none" viewBox={`0 0 ${chartWidth} 26`} preserveAspectRatio="none">
-              <rect x="0" y="0" width={chartWidth} height={26} fill="url(#landscapeAtmosphereGrad)" />
-              {/* Horizontal line separating Day Header from Hour Numbers */}
-              <line x1={0} y1={10.5} x2={chartWidth} y2={10.5} stroke="rgba(255, 255, 255, 0.08)" strokeWidth="0.75" />
-              <line x1={0} y1={25.5} x2={chartWidth} y2={25.5} stroke="rgba(255, 255, 255, 0.10)" strokeWidth="1" />
-              {exactDayNightSpans.map((span, sIdx) => {
-                if (!span.isDay) return null;
-                return (
-                  <line
-                    key={`time-day-rim-${sIdx}`}
-                    x1={span.startX}
-                    y1={25.5}
-                    x2={span.endX}
-                    y2={25.5}
-                    stroke="rgba(251, 191, 36, 0.75)"
-                    strokeWidth="1.5"
-                  />
-                );
-              })}
-            </svg>
-
-            {/* Exact Sunrise / Sunset vertical dashed lines on timeline */}
-            {sunEvents.map((event, idx) => (
-              <div
-                key={`time-sun-${idx}`}
-                style={{ left: `${event.x}px` }}
-                className={`absolute top-0 bottom-0 w-px border-l border-dashed pointer-events-none z-10 ${
-                  event.type === 'sunrise' ? 'border-amber-400/80' : 'border-orange-400/80'
-                }`}
-              />
-            ))}
-
-            {/* Scrub highlight overlay (ref-based for perf) */}
-            <div
-              ref={timelineHighlightRef}
-              className="absolute top-0 bottom-0 bg-cyan-500/35 border border-cyan-400 z-30 shadow-[0_0_8px_rgba(34,211,238,0.6)] rounded-sm pointer-events-none"
-              style={{
-                display: activeHourIdx !== null && isScrubbing ? '' : 'none',
-                left: activeHourIdx !== null ? `${activeHourIdx * colWidth}px` : 0,
-                width: `${colWidth}px`,
-              }}
-            />
-
-            {/* UPPER ROW: Fixed Day Headers spanning across 24h of each day */}
-            <div className="absolute top-0 inset-x-0 h-[10.5px] pointer-events-none select-none">
-              {timelineDaySpans.map((span) => (
-                <div
-                  key={`timeline-dayspan-${span.dayKey}`}
-                  style={{
-                    left: `${span.firstHourIdx * colWidth}px`,
-                    width: `${span.hourCount * colWidth}px`,
-                  }}
-                  className="absolute top-0 h-[10.5px] flex items-center justify-center border-r border-white/10"
-                >
-                  <span className="text-[7.5px] font-mono font-black text-amber-200/90 tracking-wider uppercase leading-none truncate px-1">
-                    {span.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* LOWER ROW: Unobstructed, fully legible Hour Numbers */}
-            <div
-              className="absolute bottom-0 inset-x-0 h-[15.5px] grid items-center text-center"
-              style={{ gridTemplateColumns: `repeat(${hours.length}, ${colWidth}px)` }}
-            >
-              {hours.map((h, i) => {
-                const isSelected = activeHourIdx === i;
-                const isStep = isStepColumn(h, i);
-                const showLabel = isStep || h.isCurrent || isSelected;
-
-                return (
-                  <div
-                    key={h.idx}
-                    data-testid={`hour-btn-${i}`}
-                    className="flex items-center justify-center h-full relative cursor-pointer"
-                    onClick={() => openOrUpdateHud(i)}
-                  >
-                    {/* Active selection outline */}
-                    {isSelected && (
-                      <div className="absolute inset-0 bg-cyan-500/35 border border-cyan-400 z-20 shadow-[0_0_8px_rgba(34,211,238,0.6)] rounded-sm" />
-                    )}
-                    {h.isCurrent && !isSelected && (
-                      <div className="absolute inset-0 bg-blue-500/20 border-b-2 border-blue-400 z-10 rounded-sm" />
-                    )}
-
-                    {/* Standard hour label - never occluded or hidden */}
-                    <span
-                      className={`font-mono tabular-nums leading-none z-20 ${
-                        isSelected
-                          ? 'text-white font-black text-[9px]'
-                          : h.isCurrent
-                          ? 'text-cyan-300 font-black text-[8px]'
-                          : showLabel
-                          ? h.isDay
-                            ? 'text-amber-100 font-bold text-[8px]'
-                            : 'text-blue-100 font-medium text-[8px]'
-                          : 'text-zinc-500/50 text-[6px]'
-                      }`}
-                    >
-                      {h.isCurrent
-                        ? 'Teraz'
-                        : showLabel
-                        ? h.hourNum.toString().padStart(2, '0')
-                        : '·'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
           {/* WYKRES 2: WIATR, PORYWY & NASŁONECZNIENIE (flex-1, seamless bottom panel) */}
           <div className="flex-1 min-h-0 rounded-b-xl rounded-t-none border-x border-b border-white/10 bg-zinc-900/40 py-1 flex flex-col relative shadow-md">
             {/* Visualizer: Cloud Area + Wind Spline + Gust Whiskers + Direction Arrows */}
@@ -2611,10 +2553,10 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
 
                   {/* Vertical Atmospheric Sky Depth Gradient (Chart 2) */}
                   <linearGradient id="landscapeVerticalDepthGrad2" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.20" />
-                    <stop offset="35%" stopColor="#0284c7" stopOpacity="0.08" />
-                    <stop offset="75%" stopColor="#000000" stopOpacity="0.15" />
-                    <stop offset="100%" stopColor="#000000" stopOpacity="0.45" />
+                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.22" />
+                    <stop offset="35%" stopColor="#0284c7" stopOpacity="0.10" />
+                    <stop offset="75%" stopColor="#000000" stopOpacity="0.08" />
+                    <stop offset="100%" stopColor="#000000" stopOpacity="0.25" />
                   </linearGradient>
                 </defs>
 
