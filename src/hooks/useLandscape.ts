@@ -41,12 +41,31 @@ export function useLandscape() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    let exitTimer: NodeJS.Timeout | null = null;
+
     const update = () => {
-      setIsLandscape(checkLandscape());
+      const nextLandscape = checkLandscape();
+      if (nextLandscape) {
+        if (exitTimer) {
+          clearTimeout(exitTimer);
+          exitTimer = null;
+        }
+        setIsLandscape(true);
+      } else {
+        // Debounce exiting landscape (120ms) to prevent accidental close on micro-tilts or sensor jitter
+        if (!exitTimer) {
+          exitTimer = setTimeout(() => {
+            if (!checkLandscape()) {
+              setIsLandscape(false);
+            }
+            exitTimer = null;
+          }, 120);
+        }
+      }
     };
 
-    // Initial check
-    update();
+    // Initial check (immediate)
+    setIsLandscape(checkLandscape());
 
     // Delayed checks to compensate for mobile browser rendering and resize debouncing
     const handleRotation = () => {

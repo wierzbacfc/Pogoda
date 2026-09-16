@@ -22,15 +22,50 @@ interface WeatherIconProps {
   size?: number;
   className?: string;
   glow?: boolean;
+  dataHud?: string;
 }
 
-function getBasePath(): string {
+export function getBasePath(): string {
   if (typeof window !== 'undefined') {
     if (window.location.pathname.startsWith('/Pogoda')) {
       return '/Pogoda';
     }
   }
   return process.env.NEXT_PUBLIC_BASE_PATH || '';
+}
+
+export function getWeatherIconFile(code: number, isDay = true): string {
+  const { iconType } = getWeatherInfo(code, isDay);
+  let finalIconType = iconType;
+  if (finalIconType === 'Sun' && !isDay) finalIconType = 'Moon';
+  if (finalIconType === 'CloudSun' && !isDay) finalIconType = 'CloudMoon';
+
+  switch (finalIconType) {
+    case 'Sun':
+      return 'sun.png';
+    case 'Moon':
+      return 'crescent_moon.png';
+    case 'CloudSun':
+      return 'sun_cloud.png';
+    case 'CloudMoon':
+      return 'moon_cloud.png';
+    case 'Cloud':
+      return 'cloud.png';
+    case 'CloudDrizzle':
+      return 'sun_rain.png';
+    case 'CloudRain':
+      return 'cloud_rain.png';
+    case 'CloudLightning':
+      return 'cloud_storm.png';
+    case 'Snowflake':
+      return 'snowflake.png';
+    case 'CloudSnow':
+      return 'cloud_snow.png';
+    case 'CloudFog':
+      return 'fog.png';
+    default:
+      return 'sun_cloud.png';
+  }
 }
 
 /**
@@ -43,6 +78,7 @@ export function WeatherIcon({
   size = 24,
   className = '',
   glow = true,
+  dataHud,
 }: WeatherIconProps) {
   const [hasError, setHasError] = useState(false);
   const { iconType } = getWeatherInfo(code, isDay);
@@ -51,37 +87,8 @@ export function WeatherIcon({
   if (finalIconType === 'Sun' && !isDay) finalIconType = 'Moon';
   if (finalIconType === 'CloudSun' && !isDay) finalIconType = 'CloudMoon';
 
-  const getIconFile = () => {
-    switch (finalIconType) {
-      case 'Sun':
-        return 'sun.png';
-      case 'Moon':
-        return 'crescent_moon.png';
-      case 'CloudSun':
-        return 'sun_cloud.png';
-      case 'CloudMoon':
-        return 'moon_cloud.png';
-      case 'Cloud':
-        return 'cloud.png';
-      case 'CloudDrizzle':
-        return 'sun_rain.png';
-      case 'CloudRain':
-        return 'cloud_rain.png';
-      case 'CloudLightning':
-        return 'cloud_storm.png';
-      case 'Snowflake':
-        return 'snowflake.png';
-      case 'CloudSnow':
-        return 'cloud_snow.png';
-      case 'CloudFog':
-        return 'fog.png';
-      default:
-        return 'sun_cloud.png';
-    }
-  };
-
   const basePath = getBasePath();
-  const src = `${basePath}/icons/weather-3d/${getIconFile()}`;
+  const src = `${basePath}/icons/weather-3d/${getWeatherIconFile(code, isDay)}`;
 
   const renderFallbackIcon = () => {
     const iconProps = { size, className: 'drop-shadow-sm' };
@@ -122,6 +129,7 @@ export function WeatherIcon({
     >
       {!hasError ? (
         <img
+          data-hud={dataHud}
           src={src}
           alt={finalIconType}
           width={size}

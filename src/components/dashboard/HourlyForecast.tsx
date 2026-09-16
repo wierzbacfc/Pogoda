@@ -79,7 +79,7 @@ function getSvgSpline(points: { x: number; y: number }[]): string {
   }, [hourlyData, currentIdx]);
 
   return (
-    <div className="bg-zinc-900/50 backdrop-blur-2xl border border-white/10 rounded-3xl p-3.5 shadow-xl flex flex-col gap-3">
+    <div className="bg-zinc-900/50 backdrop-blur-2xl border border-white/10 rounded-3xl p-3.5 shadow-xl flex flex-col gap-3 glass-isolate">
       {/* Header */}
       <div className="flex items-center justify-between text-zinc-400 px-1">
         <div className="flex items-center gap-1.5">

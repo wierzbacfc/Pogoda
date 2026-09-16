@@ -70,6 +70,37 @@ export default function WeatherApp() {
 
   const showLandscapeChart = manualLandscapeOpen || (isLandscape && !hideLandscapeChart);
 
+  // Smooth mounting & dissolving transition for LandscapeChart (eliminates visual snapping during rotation)
+  const [isLandscapeMounted, setIsLandscapeMounted] = useState(false);
+  const [isLandscapeVisible, setIsLandscapeVisible] = useState(false);
+
+  useEffect(() => {
+    if (showLandscapeChart) {
+      setIsLandscapeMounted(true);
+      const frame = requestAnimationFrame(() => {
+        setIsLandscapeVisible(true);
+      });
+      return () => cancelAnimationFrame(frame);
+    } else {
+      setIsLandscapeVisible(false);
+      const timer = setTimeout(() => {
+        setIsLandscapeMounted(false);
+      }, 280);
+      return () => clearTimeout(timer);
+    }
+  }, [showLandscapeChart]);
+
+  useEffect(() => {
+    if (isLandscapeMounted) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isLandscapeMounted]);
+
   const handleOpenLandscape = useCallback(() => {
     setManualLandscapeOpen(true);
     setHideLandscapeChart(false);
@@ -606,17 +637,33 @@ export default function WeatherApp() {
               transition: 'transform 300ms cubic-bezier(0.2, 0.9, 0.3, 1)',
             }}
           >
-            {cities.map((city) => (
-              <CitySlide
-                key={city.id}
-                city={city}
-                weather={weatherMap.get(city.id)}
-                weatherLoading={weatherLoading}
-                weatherError={weatherError}
-                onRefresh={handleRefreshAll}
-                onOpenLandscape={handleOpenLandscape}
-              />
-            ))}
+            {cities.map((city, index) => {
+              const distance = Math.abs(index - activeCityIndex);
+              // Virtualization: unmount heavy slide DOM for cities further than ±1
+              if (distance > 1) {
+                return (
+                  <div
+                    key={city.id}
+                    className="w-full min-w-full flex-shrink-0"
+                    style={{ minHeight: '100vh', pointerEvents: 'none' }}
+                    aria-hidden="true"
+                  />
+                );
+              }
+
+              return (
+                <CitySlide
+                  key={city.id}
+                  city={city}
+                  weather={weatherMap.get(city.id)}
+                  weatherLoading={weatherLoading}
+                  weatherError={weatherError}
+                  onRefresh={handleRefreshAll}
+                  onOpenLandscape={handleOpenLandscape}
+                  isActive={index === activeCityIndex}
+                />
+              );
+            })}
           </div>
         </main>
 
@@ -671,13 +718,20 @@ export default function WeatherApp() {
         />
       </div>
 
-      {/* Landscape Mode Chart (Full Viewport Overlay) */}
-      {showLandscapeChart && (
-        <LandscapeChart 
-          city={activeCity} 
-          weather={activeWeather} 
-          onClose={handleCloseLandscape} 
-        />
+      {/* Landscape Mode Chart (Full Viewport Overlay with Smooth Crossfade Transition) */}
+      {isLandscapeMounted && (
+        <div
+          className={`fixed inset-0 z-[100] transition-opacity duration-300 ease-out ${
+            isLandscapeVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+        >
+          <LandscapeChart 
+            city={activeCity} 
+            weather={activeWeather} 
+            onClose={handleCloseLandscape} 
+            isManualOpen={manualLandscapeOpen}
+          />
+        </div>
       )}
     </div>
   );

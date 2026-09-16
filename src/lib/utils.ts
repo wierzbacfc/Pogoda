@@ -209,7 +209,7 @@ export function getWeatherStoryline(hourlyData: HourlyData, currentIdx: number):
 
 export function getSunArcProgress(sunriseIso?: string, sunsetIso?: string) {
   if (!sunriseIso || !sunsetIso) {
-    return { progress: 0.5, isDay: true, countdown: 'Dzień' };
+    return { progress: 0.5, isDay: true, countdown: 'Dzień', daylightStr: '--', solarPhase: 'Dzień' };
   }
   const now = Date.now();
   const rise = new Date(sunriseIso).getTime();
@@ -217,7 +217,21 @@ export function getSunArcProgress(sunriseIso?: string, sunsetIso?: string) {
   const isDay = now >= rise && now <= set;
   let progress = 0;
   let countdown = '';
-  
+
+  const daylightMs = Math.max(0, set - rise);
+  const dHours = Math.floor(daylightMs / (1000 * 60 * 60));
+  const dMins = Math.floor((daylightMs % (1000 * 60 * 60)) / (1000 * 60));
+  const daylightStr = `${dHours}h ${dMins < 10 ? '0' : ''}${dMins}m`;
+
+  let solarPhase = isDay ? 'Dzień' : 'Noc';
+  const goldenMargin = 45 * 60 * 1000;
+
+  if (Math.abs(now - rise) <= goldenMargin) {
+    solarPhase = now < rise ? 'Świt' : 'Złota godzina';
+  } else if (Math.abs(now - set) <= goldenMargin) {
+    solarPhase = now < set ? 'Złota godzina' : 'Zmierzch';
+  }
+
   if (isDay) {
     progress = Math.max(0, Math.min(1, (now - rise) / Math.max(1, set - rise)));
     const diffMs = set - now;
@@ -234,7 +248,7 @@ export function getSunArcProgress(sunriseIso?: string, sunsetIso?: string) {
     progress = 1;
     countdown = 'Noc';
   }
-  return { progress, isDay, countdown };
+  return { progress, isDay, countdown, daylightStr, solarPhase };
 }
 
 export function getMoonPhase() {

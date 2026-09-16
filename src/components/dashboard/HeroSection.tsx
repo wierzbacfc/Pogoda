@@ -192,7 +192,7 @@ function HeroSectionComponent({
     : { label: '→ Stabilna', color: 'text-cyan-400' };
 
   return (
-    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-zinc-900/80 via-zinc-900/60 to-zinc-950/80 backdrop-blur-2xl border border-white/15 p-4 sm:p-5 shadow-[0_16px_48px_rgba(0,0,0,0.6)] flex flex-col gap-3 transition-all">
+    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-zinc-900/80 via-zinc-900/60 to-zinc-950/80 backdrop-blur-2xl border border-white/15 p-4 sm:p-5 shadow-[0_16px_48px_rgba(0,0,0,0.6)] flex flex-col gap-3 transition-all glass-isolate">
       {/* Specular top light rim */}
       <div className="absolute top-0 inset-x-8 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
@@ -253,17 +253,39 @@ function HeroSectionComponent({
               <span className="font-bold text-white tabular-nums">{formatTemp(feelsLike)}</span>
             </div>
 
-            {/* Daily Min / Max Temp Badges */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-400/25 text-amber-300 text-[11px] font-bold tabular-nums shadow-xs">
-                <ArrowUp size={11} className="text-amber-400" />
-                <span>{Math.round(maxTemp)}°</span>
-              </div>
-              <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-400/25 text-cyan-300 text-[11px] font-bold tabular-nums shadow-xs">
-                <ArrowDown size={11} className="text-cyan-400" />
-                <span>{Math.round(minTemp)}°</span>
-              </div>
-            </div>
+            {/* Daily Min / Max Thermal Capsule */}
+            {(() => {
+              const tempSpan = Math.max(1, maxTemp - minTemp);
+              const currentPos = Math.max(0, Math.min(100, ((currentTemp - minTemp) / tempSpan) * 100));
+              return (
+                <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-white/[0.04] border border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.35)] backdrop-blur-md w-fit">
+                  {/* Max Temp */}
+                  <div className="flex items-center gap-1 text-amber-300 text-[11px] font-extrabold tabular-nums">
+                    <div className="w-3.5 h-3.5 rounded-full bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-400 shrink-0">
+                      <ArrowUp size={9} />
+                    </div>
+                    <span>{Math.round(maxTemp)}°</span>
+                  </div>
+
+                  {/* Micro Thermal Gradient Spectrum Track */}
+                  <div className="w-9 h-1 bg-white/10 rounded-full relative overflow-hidden flex items-center">
+                    <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 via-emerald-400 to-amber-400 opacity-80" />
+                    <div
+                      className="absolute top-0 bottom-0 w-1.5 bg-white rounded-full shadow-[0_0_4px_rgba(255,255,255,1)]"
+                      style={{ left: `calc(${currentPos}% - 3px)` }}
+                    />
+                  </div>
+
+                  {/* Min Temp */}
+                  <div className="flex items-center gap-1 text-cyan-300 text-[11px] font-extrabold tabular-nums">
+                    <div className="w-3.5 h-3.5 rounded-full bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center text-cyan-400 shrink-0">
+                      <ArrowDown size={9} />
+                    </div>
+                    <span>{Math.round(minTemp)}°</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
 

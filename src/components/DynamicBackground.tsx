@@ -144,27 +144,41 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
       {/* ================= 1. SUNNY ================= */}
       {effectType === 'sunny' && (
         <>
-          {/* Intense solar corona & golden glow */}
+          {/* Intense solar corona & golden glow - GPU-accelerated pure radial gradient */}
           <div
-            className="absolute -top-20 -right-20 w-96 h-96 rounded-full bg-amber-400/40 blur-2xl pointer-events-none"
-            style={{ animation: 'sun-ray-pulse 6s ease-in-out infinite' }}
+            className="absolute -top-20 -right-20 w-96 h-96 rounded-full pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(circle, rgba(251, 191, 36, 0.45) 0%, rgba(245, 158, 11, 0.22) 40%, transparent 70%)',
+              animation: 'sun-ray-pulse 6s ease-in-out infinite',
+            }}
           />
           <div
-            className="absolute top-4 right-4 w-56 h-56 rounded-full bg-yellow-300/30 blur-2xl pointer-events-none"
-            style={{ animation: 'sun-ray-pulse 4.5s ease-in-out 1s infinite reverse' }}
+            className="absolute top-4 right-4 w-56 h-56 rounded-full pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(circle, rgba(253, 224, 71, 0.35) 0%, rgba(251, 191, 36, 0.15) 45%, transparent 70%)',
+              animation: 'sun-ray-pulse 4.5s ease-in-out 1s infinite reverse',
+            }}
           />
           <div
-            className="absolute top-40 right-20 w-72 h-72 rounded-full bg-orange-400/15 blur-2xl pointer-events-none"
-            style={{ animation: 'sun-ray-pulse 8s ease-in-out 2s infinite' }}
+            className="absolute top-40 right-20 w-72 h-72 rounded-full pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(circle, rgba(251, 146, 60, 0.2) 0%, transparent 70%)',
+              animation: 'sun-ray-pulse 8s ease-in-out 2s infinite',
+            }}
           />
           {/* Ambient warm light wash behind the cards */}
-          <div className="absolute top-[40%] left-[-10%] w-[120%] h-80 rounded-full bg-blue-400/15 blur-2xl pointer-events-none" />
+          <div
+            className="absolute top-[40%] left-[-10%] w-[120%] h-80 rounded-full pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(ellipse at center, rgba(96, 165, 250, 0.18) 0%, transparent 70%)',
+            }}
+          />
 
           {/* Golden luminous sun motes */}
           {sunMotes.map((m) => (
             <div
               key={m.id}
-              className="absolute rounded-full bg-amber-100 blur-[0.3px] pointer-events-none shadow-[0_0_8px_rgba(255,220,100,0.9)]"
+              className="absolute rounded-full bg-amber-100 pointer-events-none shadow-[0_0_8px_rgba(255,220,100,0.9)] gpu-composited"
               style={{
                 left: `${m.left}%`,
                 top: `${m.top}%`,
@@ -182,10 +196,18 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
         <>
           {/* Warm sunburst shining behind clouds */}
           <div
-            className="absolute -top-16 -right-16 w-80 h-80 rounded-full bg-amber-400/30 blur-2xl pointer-events-none"
-            style={{ animation: 'sun-ray-pulse 8s ease-in-out infinite' }}
+            className="absolute -top-16 -right-16 w-80 h-80 rounded-full pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(circle, rgba(251, 191, 36, 0.38) 0%, rgba(245, 158, 11, 0.18) 40%, transparent 70%)',
+              animation: 'sun-ray-pulse 8s ease-in-out infinite',
+            }}
           />
-          <div className="absolute top-[35%] right-[-10%] w-72 h-72 rounded-full bg-sky-400/20 blur-2xl pointer-events-none" />
+          <div
+            className="absolute top-[35%] right-[-10%] w-72 h-72 rounded-full pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(circle, rgba(56, 189, 248, 0.22) 0%, transparent 70%)',
+            }}
+          />
         </>
       )}
 
@@ -193,16 +215,25 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
       {hasClouds && (
         <>
           <div
-            className="absolute top-8 -left-24 w-[120%] h-56 rounded-full bg-white/[0.08] blur-2xl pointer-events-none"
-            style={{ animation: 'cloud-drift-horizontal 22s ease-in-out infinite' }}
+            className="absolute top-8 -left-24 w-[120%] h-56 rounded-full pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(ellipse at center, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.03) 50%, transparent 75%)',
+              animation: 'cloud-drift-horizontal 22s ease-in-out infinite',
+            }}
           />
           <div
-            className="absolute top-36 -right-20 w-[110%] h-52 rounded-full bg-blue-200/[0.06] blur-2xl pointer-events-none"
-            style={{ animation: 'cloud-drift-slow 28s ease-in-out 2s infinite' }}
+            className="absolute top-36 -right-20 w-[110%] h-52 rounded-full pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(ellipse at center, rgba(191, 219, 254, 0.08) 0%, rgba(191, 219, 254, 0.02) 50%, transparent 75%)',
+              animation: 'cloud-drift-slow 28s ease-in-out 2s infinite',
+            }}
           />
           <div
-            className="absolute top-72 -left-16 w-96 h-48 rounded-full bg-slate-300/[0.04] blur-2xl pointer-events-none"
-            style={{ animation: 'cloud-drift-horizontal 34s ease-in-out 5s infinite reverse' }}
+            className="absolute top-72 -left-16 w-96 h-48 rounded-full pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(ellipse at center, rgba(203, 213, 225, 0.06) 0%, transparent 70%)',
+              animation: 'cloud-drift-horizontal 34s ease-in-out 5s infinite reverse',
+            }}
           />
         </>
       )}
@@ -211,14 +242,24 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
       {(effectType === 'starry' || effectType === 'partly-night') && (
         <>
           {/* Cosmic Aurora / Nebula glow behind cards */}
-          <div className="absolute top-[20%] right-[-10%] w-80 h-80 rounded-full bg-indigo-500/20 blur-2xl pointer-events-none" />
-          <div className="absolute top-[50%] left-[-15%] w-96 h-96 rounded-full bg-blue-600/15 blur-2xl pointer-events-none" />
+          <div
+            className="absolute top-[20%] right-[-10%] w-80 h-80 rounded-full pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(circle, rgba(99, 102, 241, 0.22) 0%, transparent 70%)',
+            }}
+          />
+          <div
+            className="absolute top-[50%] left-[-15%] w-96 h-96 rounded-full pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(circle, rgba(37, 99, 235, 0.18) 0%, transparent 70%)',
+            }}
+          />
 
           {/* Twinkling star field */}
           {starParticles.map((p) => (
             <div
               key={p.id}
-              className={`absolute bg-white rounded-full pointer-events-none ${
+              className={`absolute bg-white rounded-full pointer-events-none gpu-composited ${
                 p.isBright ? 'shadow-[0_0_8px_rgba(255,255,255,1)]' : 'shadow-[0_0_3px_rgba(200,225,255,0.7)]'
               }`}
               style={{
@@ -233,11 +274,11 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
 
           {/* Majestic shooting stars across the night sky */}
           <div
-            className="absolute top-[16%] left-[20%] w-24 h-[1.8px] bg-gradient-to-r from-white via-cyan-200 to-transparent pointer-events-none shadow-[0_0_12px_rgba(255,255,255,0.9)]"
+            className="absolute top-[16%] left-[20%] w-24 h-[1.8px] bg-gradient-to-r from-white via-cyan-200 to-transparent pointer-events-none shadow-[0_0_12px_rgba(255,255,255,0.9)] gpu-composited"
             style={{ animation: 'shooting-star 12s ease-in-out 3s infinite' }}
           />
           <div
-            className="absolute top-[38%] left-[55%] w-16 h-[1.2px] bg-gradient-to-r from-white via-indigo-200 to-transparent pointer-events-none shadow-[0_0_8px_rgba(255,255,255,0.7)]"
+            className="absolute top-[38%] left-[55%] w-16 h-[1.2px] bg-gradient-to-r from-white via-indigo-200 to-transparent pointer-events-none shadow-[0_0_8px_rgba(255,255,255,0.7)] gpu-composited"
             style={{ animation: 'shooting-star 18s ease-in-out 9s infinite' }}
           />
         </>
@@ -246,11 +287,16 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
       {/* ================= 5. DRIZZLE ================= */}
       {effectType === 'drizzle' && (
         <>
-          <div className="absolute top-[25%] inset-x-0 h-64 bg-cyan-400/10 blur-2xl pointer-events-none" />
+          <div
+            className="absolute top-[25%] inset-x-0 h-64 pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(ellipse at center, rgba(34, 211, 238, 0.14) 0%, transparent 70%)',
+            }}
+          />
           {drizzleParticles.map((p) => (
             <div
               key={p.id}
-              className="absolute top-[-25px] w-[1px] bg-gradient-to-b from-cyan-100 to-cyan-400 rounded-full pointer-events-none shadow-[0_0_4px_rgba(34,211,238,0.6)]"
+              className="absolute top-[-25px] w-[1px] bg-gradient-to-b from-cyan-100 to-cyan-400 rounded-full pointer-events-none shadow-[0_0_4px_rgba(34,211,238,0.6)] gpu-composited"
               style={{
                 left: `${p.left}%`,
                 height: `${p.height}px`,
@@ -266,16 +312,21 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
       {(effectType === 'rain' || effectType === 'storm') && (
         <>
           {/* Deep oceanic backlight glow */}
-          <div className="absolute top-[30%] inset-x-0 h-80 bg-blue-500/15 blur-2xl pointer-events-none" />
+          <div
+            className="absolute top-[30%] inset-x-0 h-80 pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(ellipse at center, rgba(59, 130, 246, 0.2) 0%, transparent 75%)',
+            }}
+          />
 
           {/* Multi-depth rain streaks */}
           {rainParticles.map((p) => (
             <div
               key={p.id}
-              className={`absolute top-[-40px] rounded-full pointer-events-none ${
+              className={`absolute top-[-40px] rounded-full pointer-events-none gpu-composited ${
                 p.isForeground
                   ? 'w-[1.8px] bg-gradient-to-b from-cyan-100 via-blue-300 to-blue-400 shadow-[0_0_6px_rgba(56,189,248,0.7)]'
-                  : 'w-[1px] bg-blue-200/50 blur-[0.4px]'
+                  : 'w-[1px] bg-blue-200/50'
               }`}
               style={{
                 left: `${p.left}%`,
@@ -292,11 +343,16 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
       {effectType === 'storm' && (
         <>
           {/* Violet/Purple storm core glow */}
-          <div className="absolute top-[15%] inset-x-0 h-72 bg-purple-600/25 blur-2xl pointer-events-none" />
+          <div
+            className="absolute top-[15%] inset-x-0 h-72 pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(ellipse at center, rgba(147, 51, 234, 0.28) 0%, transparent 75%)',
+            }}
+          />
 
           {/* Electric dual-stage lightning flashes */}
           <div
-            className="absolute inset-0 bg-indigo-100/20 pointer-events-none"
+            className="absolute inset-0 bg-indigo-100/20 pointer-events-none gpu-composited"
             style={{ animation: 'lightning-flash 6.5s ease-in-out infinite' }}
           />
         </>
@@ -306,17 +362,27 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
       {effectType === 'snow' && (
         <>
           {/* Crystalline frosty glow */}
-          <div className="absolute top-[20%] right-[-5%] w-88 h-88 rounded-full bg-sky-300/20 blur-2xl pointer-events-none" />
-          <div className="absolute top-[55%] left-[-10%] w-80 h-80 rounded-full bg-blue-400/15 blur-2xl pointer-events-none" />
+          <div
+            className="absolute top-[20%] right-[-5%] w-88 h-88 rounded-full pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(circle, rgba(125, 211, 252, 0.24) 0%, transparent 70%)',
+            }}
+          />
+          <div
+            className="absolute top-[55%] left-[-10%] w-80 h-80 rounded-full pointer-events-none gpu-composited"
+            style={{
+              background: 'radial-gradient(circle, rgba(96, 165, 250, 0.2) 0%, transparent 70%)',
+            }}
+          />
 
           {/* 2-plane snowflakes: foreground bokeh + crisp flakes */}
           {snowParticles.map((p) => (
             <div
               key={p.id}
-              className={`absolute top-[-25px] rounded-full pointer-events-none ${
+              className={`absolute top-[-25px] rounded-full pointer-events-none gpu-composited ${
                 p.isBokeh
-                  ? 'bg-white/40 blur-[1.5px] shadow-[0_0_10px_rgba(255,255,255,0.6)]'
-                  : 'bg-white/95 blur-[0.2px] shadow-[0_0_6px_rgba(255,255,255,0.9)]'
+                  ? 'bg-white/45 shadow-[0_0_10px_rgba(255,255,255,0.6)]'
+                  : 'bg-white/95 shadow-[0_0_6px_rgba(255,255,255,0.9)]'
               }`}
               style={{
                 left: `${p.left}%`,
@@ -332,9 +398,27 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
       {/* ================= 9. FOG ================= */}
       {effectType === 'fog' && (
         <>
-          <div className="absolute top-[15%] inset-x-0 h-40 bg-white/15 blur-2xl pointer-events-none" style={{ animation: 'fog-shift 8s ease-in-out infinite' }} />
-          <div className="absolute top-[40%] inset-x-0 h-52 bg-white/10 blur-2xl pointer-events-none" style={{ animation: 'fog-shift 12s ease-in-out 2s infinite reverse' }} />
-          <div className="absolute top-[65%] inset-x-0 h-48 bg-slate-200/10 blur-2xl pointer-events-none" style={{ animation: 'fog-shift 16s ease-in-out 4s infinite' }} />
+          <div
+            className="absolute top-[15%] inset-x-0 h-40 pointer-events-none gpu-composited"
+            style={{
+              background: 'linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.12), transparent)',
+              animation: 'fog-shift 8s ease-in-out infinite',
+            }}
+          />
+          <div
+            className="absolute top-[40%] inset-x-0 h-52 pointer-events-none gpu-composited"
+            style={{
+              background: 'linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.09), transparent)',
+              animation: 'fog-shift 12s ease-in-out 2s infinite reverse',
+            }}
+          />
+          <div
+            className="absolute top-[65%] inset-x-0 h-48 pointer-events-none gpu-composited"
+            style={{
+              background: 'linear-gradient(to bottom, transparent, rgba(226, 232, 240, 0.08), transparent)',
+              animation: 'fog-shift 16s ease-in-out 4s infinite',
+            }}
+          />
         </>
       )}
     </div>
