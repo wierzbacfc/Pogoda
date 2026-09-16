@@ -665,7 +665,7 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
         return (
           <div
             ref={hudRef}
-            className={`absolute bottom-[calc(100%+8px)] left-0 right-0 z-40 mx-0.5 p-2.5 rounded-2xl bg-zinc-950/95 border border-cyan-400/50 backdrop-blur-2xl shadow-[0_12px_36px_rgba(0,0,0,0.85)] flex flex-col gap-1.5 transition-all duration-200 ease-out select-none ${
+            className={`relative mx-0.5 p-2.5 rounded-2xl bg-black/90 border border-cyan-400/50 backdrop-blur-2xl shadow-[0_12px_36px_rgba(0,0,0,0.85)] flex flex-col gap-1.5 transition-all duration-200 ease-out select-none ${
               isClosing
                 ? 'opacity-0 translate-y-2 scale-[0.98] pointer-events-none'
                 : 'opacity-100 translate-y-0 scale-100 animate-in fade-in-0 slide-in-from-bottom-2'

@@ -463,11 +463,11 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
     const startsAsDay = sunEvents[0].type === 'sunset';
     let currentPhase: 'night' | 'day' = startsAsDay ? 'day' : 'night';
 
-    // High-contrast, radiant sky palette:
+    // High-contrast, deeply darkened sky palette:
     // Night: Deep obsidian midnight
-    // Day: Vibrant luminous daytime sky blue (evoking clear sunny daylight, matching DynamicBackground)
+    // Day: Ultra-dark deep sapphire daylight sky (#052c48 - exactly 3 levels darker than level 4 #0369a1)
     const nightColor = '#020617';
-    const dayColor = '#1e88e5';
+    const dayColor = '#052c48';
     const nightOpacity = 0.98;
     const dayOpacity = 0.92;
 
@@ -488,17 +488,17 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
       if (isSunrise) {
         // NIGHT -> DAWN -> DAY: pure, natural monochromatic sky progression
         stops.push({ offset: startPct, color: nightColor, opacity: nightOpacity });
-        stops.push({ offset: Math.max(0, eventPct - blendPct * 0.50), color: '#072242', opacity: 0.96 });
-        stops.push({ offset: eventPct, color: '#0c437a', opacity: 0.94 });
-        stops.push({ offset: Math.min(100, eventPct + blendPct * 0.50), color: '#1363b3', opacity: 0.93 });
+        stops.push({ offset: Math.max(0, eventPct - blendPct * 0.50), color: '#031424', opacity: 0.96 });
+        stops.push({ offset: eventPct, color: '#041c30', opacity: 0.94 });
+        stops.push({ offset: Math.min(100, eventPct + blendPct * 0.50), color: '#05243c', opacity: 0.93 });
         stops.push({ offset: endPct, color: dayColor, opacity: dayOpacity });
         currentPhase = 'day';
       } else {
         // DAY -> DUSK -> NIGHT: pure, natural monochromatic sky progression
         stops.push({ offset: startPct, color: dayColor, opacity: dayOpacity });
-        stops.push({ offset: Math.max(0, eventPct - blendPct * 0.50), color: '#1363b3', opacity: 0.93 });
-        stops.push({ offset: eventPct, color: '#0c437a', opacity: 0.94 });
-        stops.push({ offset: Math.min(100, eventPct + blendPct * 0.50), color: '#072242', opacity: 0.96 });
+        stops.push({ offset: Math.max(0, eventPct - blendPct * 0.50), color: '#05243c', opacity: 0.93 });
+        stops.push({ offset: eventPct, color: '#041c30', opacity: 0.94 });
+        stops.push({ offset: Math.min(100, eventPct + blendPct * 0.50), color: '#031424', opacity: 0.96 });
         stops.push({ offset: endPct, color: nightColor, opacity: nightOpacity });
         currentPhase = 'night';
       }
