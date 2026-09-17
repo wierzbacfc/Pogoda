@@ -18,7 +18,6 @@ interface HeroSectionProps {
   onRefresh?: () => void;
   isRefreshing?: boolean;
   airQuality?: AirQualityData;
-  isScrolled?: boolean;
 }
 
 function HeroSectionComponent({
@@ -31,17 +30,9 @@ function HeroSectionComponent({
   onRefresh,
   isRefreshing,
   airQuality,
-  isScrolled = false,
 }: HeroSectionProps) {
   const [expandedCard, setExpandedCard] = useState<'wind' | 'aqi' | 'bike' | null>(null);
   const bubbleRef = useRef<HTMLDivElement | null>(null);
-
-  // Auto-close bike card bubble when scrolling into compact mode
-  useEffect(() => {
-    if (isScrolled && expandedCard === 'bike') {
-      setExpandedCard(null);
-    }
-  }, [isScrolled, expandedCard]);
 
   // Auto-scroll speech bubble into view
   useEffect(() => {
@@ -205,81 +196,31 @@ function HeroSectionComponent({
   const cyclingAnalysis = getCyclingAnalysis(hourlyData, currentIdx, airQuality);
 
   return (
-    <div className={`relative overflow-hidden bg-gradient-to-b from-zinc-900/80 via-zinc-900/60 to-zinc-950/80 backdrop-blur-2xl border border-white/15 shadow-[0_16px_48px_rgba(0,0,0,0.6)] flex flex-col transition-all duration-300 ease-out glass-isolate ${
-      isScrolled ? 'px-2.5 py-1.5 gap-1 rounded-2xl ring-1 ring-white/10' : 'p-4 sm:p-5 gap-3 rounded-3xl'
-    }`}>
+    <div className="relative overflow-hidden bg-gradient-to-b from-zinc-900/80 via-zinc-900/60 to-zinc-950/80 backdrop-blur-2xl border border-white/15 shadow-[0_16px_48px_rgba(0,0,0,0.6)] flex flex-col p-4 sm:p-5 gap-3 rounded-3xl transition-all duration-300 ease-out glass-isolate">
       {/* Specular top light rim */}
-      <div className={`absolute top-0 inset-x-8 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent transition-opacity ${isScrolled ? 'opacity-50' : 'opacity-100'}`} />
+      <div className="absolute top-0 inset-x-8 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent opacity-100" />
 
-      {/* 1. Header: City info & Scrolled All-in-one Weather Bar */}
+      {/* 1. Header: City info */}
       <div className="flex items-center justify-between gap-2">
-        {/* Left Side: Pin + City Name + Current Temp & Icon (single line when scrolled) */}
-        <div className="flex items-center gap-1.5 min-w-0 transition-transform duration-300 origin-left">
-          <div className={`${isScrolled ? 'w-5 h-5 rounded-md' : 'w-7 h-7 rounded-xl'} bg-blue-500/15 border border-blue-400/25 flex items-center justify-center shrink-0 shadow-[0_0_10px_rgba(59,130,246,0.2)] transition-all duration-300`}>
-            <LocationIcon className={`${isScrolled ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5'} text-blue-400`} />
+        {/* Left Side: Pin + City Name */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="w-7 h-7 rounded-xl bg-blue-500/15 border border-blue-400/25 flex items-center justify-center shrink-0 shadow-[0_0_10px_rgba(59,130,246,0.2)]">
+            <LocationIcon className="w-3.5 h-3.5 text-blue-400" />
           </div>
-          <div className="flex items-center gap-1.5 min-w-0">
-            <h1 className={`${isScrolled ? 'text-xs sm:text-sm font-bold' : 'text-xl font-bold'} text-white tracking-tight truncate leading-tight transition-all duration-300`}>
+          <div className="flex flex-col min-w-0">
+            <h1 className="text-xl font-bold text-white tracking-tight truncate leading-tight">
               {city.name}
             </h1>
-            {displaySubtitle && !isScrolled && (
+            {displaySubtitle && (
               <p className="text-[11px] text-zinc-400 truncate leading-none mt-0.5">
                 {displaySubtitle}
               </p>
             )}
-            {/* Inline Mini-Temp (Visible only when scrolled, seamlessly following city name) */}
-            {isScrolled && (
-              <div className="flex items-center gap-1 shrink-0 animate-in fade-in duration-300">
-                <span className="text-xs sm:text-sm font-extrabold text-white tabular-nums tracking-tight leading-none">{Math.round(currentTemp)}°</span>
-                <WeatherIcon code={weatherCode} isDay={isDay} size={16} />
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Right side when scrolled: Feels like + Min/Max Thermal Capsule (single line) */}
-        {isScrolled && (
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 animate-in fade-in duration-300">
-            {/* Feels Like */}
-            <div className="flex items-center gap-0.5 text-[10px] tabular-nums leading-none">
-              <span className="text-zinc-400 text-[9px] font-normal">Odcz.</span>
-              <span className="font-bold text-white text-[10px]">{formatTemp(feelsLike)}</span>
-            </div>
-
-            {/* Daily Min / Max Thermal Capsule */}
-            {(() => {
-              const tempSpan = Math.max(1, maxTemp - minTemp);
-              const currentPos = Math.max(0, Math.min(100, ((currentTemp - minTemp) / tempSpan) * 100));
-              return (
-                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white/[0.05] border border-white/10 shadow-sm backdrop-blur-md">
-                  {/* Max Temp */}
-                  <div className="flex items-center text-amber-300 text-[9px] font-extrabold tabular-nums">
-                    <ArrowUp size={8} className="text-amber-400 mr-0.5" />
-                    <span>{Math.round(maxTemp)}°</span>
-                  </div>
-
-                  {/* Micro Thermal Gradient Spectrum Track */}
-                  <div className="w-5 sm:w-6 h-1 bg-white/10 rounded-full relative overflow-hidden flex items-center">
-                    <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 via-emerald-400 to-amber-400 opacity-80" />
-                    <div
-                      className="absolute top-0 bottom-0 w-1 bg-white rounded-full shadow-[0_0_3px_rgba(255,255,255,1)]"
-                      style={{ left: `calc(${currentPos}% - 2px)` }}
-                    />
-                  </div>
-
-                  {/* Min Temp */}
-                  <div className="flex items-center text-cyan-300 text-[9px] font-extrabold tabular-nums">
-                    <ArrowDown size={8} className="text-cyan-400 mr-0.5" />
-                    <span>{Math.round(minTemp)}°</span>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
-        {/* Right side when NOT scrolled: GPS & Refresh button */}
-        <div className={`flex items-center gap-1.5 shrink-0 transition-all duration-300 ${isScrolled ? 'hidden' : 'flex'}`}>
+        {/* Right side: GPS & Refresh button */}
+        <div className="flex items-center gap-1.5 shrink-0">
           {city.isGps && (
             <span className="text-[9px] uppercase font-extrabold tracking-widest px-2.5 py-1 rounded-full bg-blue-500/15 border border-blue-400/30 text-blue-400 shrink-0 shadow-[0_0_8px_rgba(59,130,246,0.2)]">
               GPS
@@ -301,7 +242,7 @@ function HeroSectionComponent({
       </div>
 
       {/* 2. Central Core: Grand Temperature & Weather Visual */}
-      <div className={`flex items-center justify-between px-0.5 transition-all duration-300 ease-out origin-top ${isScrolled ? 'h-0 opacity-0 scale-95 my-0 pointer-events-none' : 'h-auto opacity-100 scale-100 my-0.5'}`}>
+      <div className="flex items-center justify-between px-0.5 my-0.5">
         {/* Left: Huge Temp & Rebuilt Secondary Temperatures */}
         <div className="flex flex-col justify-center">
           <div className="flex items-baseline">
@@ -379,151 +320,83 @@ function HeroSectionComponent({
       </div>
 
       {/* 3. Symmetrical Modules: Wind & Air Quality */}
-      {isScrolled ? (
-        /* Unified ultra-slim divided bar in scrolled sticky mode */
-        <div className="flex items-center divide-x divide-white/10 rounded-lg bg-white/[0.03] border border-white/10 shadow-sm mt-0.5 overflow-hidden transition-all duration-300">
-          {/* Wind Segment */}
-          <div
-            onClick={() => setExpandedCard(prev => prev === 'wind' ? null : 'wind')}
-            className={`flex-1 flex items-center justify-between px-2 py-0.5 gap-1.5 cursor-pointer active:scale-[0.99] transition-all hover:bg-white/[0.04] ${
-              expandedCard === 'wind' ? 'bg-blue-500/10' : ''
-            }`}
-          >
-            <div className="flex items-center gap-1.5 min-w-0">
-              <div className="w-3.5 h-3.5 rounded-full bg-blue-500/15 border border-blue-400/30 flex items-center justify-center shrink-0">
-                <Navigation
-                  size={8}
-                  style={{ transform: `rotate(${windDir}deg)` }}
-                  className="fill-current text-blue-400 transition-transform duration-500"
-                />
-              </div>
-              <div className="flex items-baseline gap-1 truncate text-[10px] leading-none">
-                <span className="text-zinc-400 text-[9px] uppercase font-bold">Wiatr</span>
-                <span className="font-bold text-white tabular-nums">{Math.round(windSpeed)}</span>
-                <span className="text-zinc-400 text-[9px]">km/h</span>
-                {windGusts > windSpeed && (
-                  <span className="text-cyan-300 text-[9px] font-semibold truncate">({windGusts})</span>
-                )}
-              </div>
-            </div>
-            <ChevronDown
-              size={9}
-              className={`text-zinc-500 shrink-0 transition-transform duration-200 ${expandedCard === 'wind' ? 'rotate-180 text-blue-400' : ''}`}
+      <div className="grid grid-cols-2 gap-2 mt-1">
+        {/* Module 1: Wiatr */}
+        <div
+          onClick={() => setExpandedCard(prev => prev === 'wind' ? null : 'wind')}
+          className={`bg-white/[0.04] border flex items-center shadow-sm transition-all cursor-pointer active:scale-[0.98] px-2.5 py-2.5 gap-2 rounded-2xl ${
+            expandedCard === 'wind'
+              ? 'border-blue-400/60 ring-1 ring-blue-400/40 bg-white/[0.08]'
+              : 'border-white/10 hover:border-blue-400/30'
+          }`}
+        >
+          <div className="w-11 h-11 rounded-full bg-blue-500/15 border border-blue-400/30 flex items-center justify-center shrink-0 relative shadow-[0_0_10px_rgba(59,130,246,0.25)] transition-all duration-300">
+            <Navigation
+              size={20}
+              style={{ transform: `rotate(${windDir}deg)` }}
+              className="fill-current text-blue-400 transition-transform duration-500"
             />
           </div>
-
-          {/* AQI Segment */}
-          <div
-            onClick={() => setExpandedCard(prev => prev === 'aqi' ? null : 'aqi')}
-            className={`flex-1 flex items-center justify-between px-2 py-0.5 gap-1.5 cursor-pointer active:scale-[0.99] transition-all hover:bg-white/[0.04] ${
-              expandedCard === 'aqi' ? 'bg-emerald-500/10' : ''
-            }`}
-          >
-            <div className="flex items-center gap-1.5 min-w-0">
-              <div
-                className="w-3.5 h-3.5 rounded-full bg-white/[0.04] border flex items-center justify-center shrink-0"
-                style={{
-                  borderColor: aqiStatus.color,
-                  boxShadow: `0 0 6px ${aqiStatus.color}35`,
-                }}
-              >
-                <span className="text-[7px] font-black text-white leading-none">
-                  {Math.round(aqiValue)}
-                </span>
-              </div>
-              <div className="flex items-baseline gap-1 truncate text-[10px] leading-none">
-                <span className="text-zinc-400 text-[9px] uppercase font-bold">AQI</span>
-                <span className="font-bold truncate" style={{ color: aqiStatus.color }}>
-                  {aqiStatus.label}
-                </span>
-              </div>
-            </div>
-            <ChevronDown
-              size={9}
-              className={`text-zinc-500 shrink-0 transition-transform duration-200 ${expandedCard === 'aqi' ? 'rotate-180 text-emerald-400' : ''}`}
-            />
-          </div>
-        </div>
-      ) : (
-        /* Full-size 2-column grid in standard non-scrolled hero mode */
-        <div className="grid grid-cols-2 gap-2 mt-1">
-          {/* Module 1: Wiatr */}
-          <div
-            onClick={() => setExpandedCard(prev => prev === 'wind' ? null : 'wind')}
-            className={`bg-white/[0.04] border flex items-center shadow-sm transition-all cursor-pointer active:scale-[0.98] px-2.5 py-2.5 gap-2 rounded-2xl ${
-              expandedCard === 'wind'
-                ? 'border-blue-400/60 ring-1 ring-blue-400/40 bg-white/[0.08]'
-                : 'border-white/10 hover:border-blue-400/30'
-            }`}
-          >
-            <div className="w-11 h-11 rounded-full bg-blue-500/15 border border-blue-400/30 flex items-center justify-center shrink-0 relative shadow-[0_0_10px_rgba(59,130,246,0.25)] transition-all duration-300">
-              <Navigation
-                size={20}
-                style={{ transform: `rotate(${windDir}deg)` }}
-                className="fill-current text-blue-400 transition-transform duration-500"
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">Wiatr</span>
+              <ChevronDown
+                size={12}
+                className={`text-zinc-500 transition-transform duration-200 ${expandedCard === 'wind' ? 'rotate-180 text-blue-400' : ''}`}
               />
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">Wiatr</span>
-                <ChevronDown
-                  size={12}
-                  className={`text-zinc-500 transition-transform duration-200 ${expandedCard === 'wind' ? 'rotate-180 text-blue-400' : ''}`}
-                />
-              </div>
-              <div className="text-lg font-extrabold text-white leading-tight mt-0.5">
-                {Math.round(windSpeed)} <span className="text-[10px] font-normal text-zinc-400">km/h</span>
-              </div>
-              <div className="text-[9px] font-bold text-cyan-300 truncate mt-0.5">
-                {windGusts > windSpeed ? `Porywy: ${windGusts} km/h` : 'Wiatr stabilny'}
-              </div>
+            <div className="text-lg font-extrabold text-white leading-tight mt-0.5">
+              {Math.round(windSpeed)} <span className="text-[10px] font-normal text-zinc-400">km/h</span>
             </div>
-          </div>
-
-          {/* Module 2: Jakość Powietrza */}
-          <div
-            onClick={() => setExpandedCard(prev => prev === 'aqi' ? null : 'aqi')}
-            className={`bg-white/[0.04] border flex items-center shadow-sm transition-all cursor-pointer active:scale-[0.98] px-2.5 py-2.5 gap-2 rounded-2xl ${
-              expandedCard === 'aqi'
-                ? 'border-emerald-400/60 ring-1 ring-emerald-400/40 bg-white/[0.08]'
-                : 'border-white/10 hover:border-emerald-400/30'
-            }`}
-          >
-            <div
-              className="w-11 h-11 border-2 rounded-full bg-white/[0.04] flex flex-col items-center justify-center shrink-0 transition-all duration-300"
-              style={{
-                borderColor: aqiStatus.color,
-                boxShadow: `0 0 10px ${aqiStatus.color}35`,
-              }}
-            >
-              <span className="text-sm font-black text-white leading-none">
-                {Math.round(aqiValue)}
-              </span>
-              <span className="text-[7px] font-bold text-zinc-400 uppercase tracking-wider mt-0.5">
-                AQI
-              </span>
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">Powietrze</span>
-                <ChevronDown
-                  size={12}
-                  className={`text-zinc-500 transition-transform duration-200 ${expandedCard === 'aqi' ? 'rotate-180 text-emerald-400' : ''}`}
-                />
-              </div>
-              <div
-                className="text-xs font-bold leading-tight mt-0.5"
-                style={{ color: aqiStatus.color }}
-              >
-                {aqiStatus.label}
-              </div>
-              <div className="text-[9px] text-zinc-400 truncate mt-0.5">
-                PM2.5: <strong className="text-zinc-200 font-semibold">{pm25}</strong> &bull; PM10: <strong className="text-zinc-200 font-semibold">{pm10}</strong>
-              </div>
+            <div className="text-[9px] font-bold text-cyan-300 truncate mt-0.5">
+              {windGusts > windSpeed ? `Porywy: ${windGusts} km/h` : 'Wiatr stabilny'}
             </div>
           </div>
         </div>
-      )}
+
+        {/* Module 2: Jakość Powietrza */}
+        <div
+          onClick={() => setExpandedCard(prev => prev === 'aqi' ? null : 'aqi')}
+          className={`bg-white/[0.04] border flex items-center shadow-sm transition-all cursor-pointer active:scale-[0.98] px-2.5 py-2.5 gap-2 rounded-2xl ${
+            expandedCard === 'aqi'
+              ? 'border-emerald-400/60 ring-1 ring-emerald-400/40 bg-white/[0.08]'
+              : 'border-white/10 hover:border-emerald-400/30'
+          }`}
+        >
+          <div
+            className="w-11 h-11 border-2 rounded-full bg-white/[0.04] flex flex-col items-center justify-center shrink-0 transition-all duration-300"
+            style={{
+              borderColor: aqiStatus.color,
+              boxShadow: `0 0 10px ${aqiStatus.color}35`,
+            }}
+          >
+            <span className="text-sm font-black text-white leading-none">
+              {Math.round(aqiValue)}
+            </span>
+            <span className="text-[7px] font-bold text-zinc-400 uppercase tracking-wider mt-0.5">
+              AQI
+            </span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">Powietrze</span>
+              <ChevronDown
+                size={12}
+                className={`text-zinc-500 transition-transform duration-200 ${expandedCard === 'aqi' ? 'rotate-180 text-emerald-400' : ''}`}
+              />
+            </div>
+            <div
+              className="text-xs font-bold leading-tight mt-0.5"
+              style={{ color: aqiStatus.color }}
+            >
+              {aqiStatus.label}
+            </div>
+            <div className="text-[9px] text-zinc-400 truncate mt-0.5">
+              PM2.5: <strong className="text-zinc-200 font-semibold">{pm25}</strong> &bull; PM10: <strong className="text-zinc-200 font-semibold">{pm10}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Expanded Speech Bubble for Wind and AQI */}
       {(expandedCard === 'wind' || expandedCard === 'aqi') && (
@@ -716,81 +589,71 @@ function HeroSectionComponent({
         </div>
       )}
 
-      {/* Module 3: Cycling Bar (Full Width, visible only when NOT scrolled) */}
-      {!isScrolled && (
-        <div
-          onClick={() => setExpandedCard((prev) => (prev === 'bike' ? null : 'bike'))}
-          className={`bg-white/[0.04] border flex flex-col shadow-sm transition-all cursor-pointer active:scale-[0.99] p-3 gap-2.5 rounded-2xl mt-1 ${
-            expandedCard === 'bike'
-              ? 'border-emerald-400/60 ring-1 ring-emerald-400/40 bg-white/[0.08]'
-              : 'border-white/10 hover:border-emerald-400/30'
-          }`}
-        >
-          {/* Top row */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center shrink-0 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-                <Bike size={16} className="text-emerald-400" />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">Rower & Outdoor</span>
-                  <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md border leading-none ${cyclingAnalysis.badgeBg} ${cyclingAnalysis.badgeBorder} ${cyclingAnalysis.badgeText}`}>
-                    {cyclingAnalysis.overallLabel}
-                  </span>
-                </div>
-                <span className="text-xs font-semibold text-zinc-200 truncate mt-0.5">
-                  {cyclingAnalysis.headline}
-                </span>
-              </div>
+      {/* Module 3: Cycling Bar (Ultra-compact) */}
+      <div
+        onClick={() => setExpandedCard((prev) => (prev === 'bike' ? null : 'bike'))}
+        className={`bg-white/[0.04] border flex flex-col shadow-sm transition-all cursor-pointer active:scale-[0.99] px-3 py-2 gap-1.5 rounded-2xl mt-1 ${
+          expandedCard === 'bike'
+            ? 'border-emerald-400/60 ring-1 ring-emerald-400/40 bg-white/[0.08]'
+            : 'border-white/10 hover:border-emerald-400/30'
+        }`}
+      >
+        {/* Row 1: Icon + Title + Badge + Headline + Score + Chevron */}
+        <div className="flex items-center justify-between gap-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className="w-5 h-5 rounded-md bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.2)]">
+              <Bike size={12} className="text-emerald-400" />
             </div>
-            <div className="flex items-center gap-1 shrink-0 ml-2">
-              <span className="text-[10px] font-bold text-zinc-400 tabular-nums">
-                {cyclingAnalysis.overallScore}<span className="text-[8px] font-normal text-zinc-500">/100</span>
-              </span>
-              <ChevronDown
-                size={13}
-                className={`text-zinc-500 transition-transform duration-200 ${
-                  expandedCard === 'bike' ? 'rotate-180 text-emerald-400' : ''
-                }`}
-              />
-            </div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-300 shrink-0">
+              Rower
+            </span>
+            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded border leading-none shrink-0 ${cyclingAnalysis.badgeBg} ${cyclingAnalysis.badgeBorder} ${cyclingAnalysis.badgeText}`}>
+              {cyclingAnalysis.overallLabel}
+            </span>
+            <span className="text-[10px] text-zinc-400 truncate">
+              {cyclingAnalysis.headline}
+            </span>
           </div>
 
-          {/* Continuous 4-hour Timeline Ribbon (Segmentowa wstęga czasu) */}
-          <div className="flex flex-col gap-1.5 pt-0.5">
-            <div className="w-full h-2 rounded-full overflow-hidden flex gap-1 p-[1px] bg-black/30 border border-white/5 shadow-inner">
-              {cyclingAnalysis.all4Hours.map((hour, idx) => (
-                <div
-                  key={idx}
-                  className={`flex-1 h-full rounded-full bg-gradient-to-r ${hour.gradient} transition-all duration-300 relative shadow-sm`}
-                  title={`${hour.hourLabel}: ${hour.label} (${hour.score} pkt)`}
-                />
-              ))}
-            </div>
-
-            {/* Hour labels row aligning with ribbon segments */}
-            <div className="grid grid-cols-4 text-center">
-              {cyclingAnalysis.all4Hours.map((hour, idx) => (
-                <div key={idx} className="flex flex-col items-center">
-                  <div className="flex items-center gap-1">
-                    <span className={`w-1 h-1 rounded-full ${hour.dotColor}`} />
-                    <span className="text-[10px] font-semibold text-zinc-300 tabular-nums leading-tight">
-                      {hour.hourLabel}
-                    </span>
-                  </div>
-                  <span className="text-[9px] text-zinc-400 tabular-nums leading-tight">
-                    {hour.temp}° {hour.precipitation > 0 ? `• ${hour.precipitation.toFixed(1)}mm` : ''}
-                  </span>
-                </div>
-              ))}
-            </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="text-[10px] font-bold text-zinc-300 tabular-nums">
+              {cyclingAnalysis.overallScore}<span className="text-[8px] font-normal text-zinc-500">/100</span>
+            </span>
+            <ChevronDown
+              size={12}
+              className={`text-zinc-500 transition-transform duration-200 ${
+                expandedCard === 'bike' ? 'rotate-180 text-emerald-400' : ''
+              }`}
+            />
           </div>
         </div>
-      )}
+
+        {/* Row 2: 4-hour Timeline Ribbon & Inline Labels */}
+        <div className="flex flex-col gap-1">
+          <div className="w-full h-1.5 rounded-full overflow-hidden flex gap-1 p-[1px] bg-black/40 border border-white/5">
+            {cyclingAnalysis.all4Hours.map((hour, idx) => (
+              <div
+                key={idx}
+                className={`flex-1 h-full rounded-full bg-gradient-to-r ${hour.gradient} transition-all duration-300`}
+                title={`${hour.hourLabel}: ${hour.label} (${hour.score} pkt)`}
+              />
+            ))}
+          </div>
+
+          <div className="grid grid-cols-4 text-center text-[9px] tabular-nums leading-none pt-0.5">
+            {cyclingAnalysis.all4Hours.map((hour, idx) => (
+              <div key={idx} className="flex items-center justify-center gap-1">
+                <span className={`w-1 h-1 rounded-full shrink-0 ${hour.dotColor}`} />
+                <span className="font-semibold text-zinc-300">{hour.hourLabel}</span>
+                <span className="text-zinc-400">{hour.temp}°</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* Bike Speech Bubble (visible only when expandedCard === 'bike') */}
-      {!isScrolled && expandedCard === 'bike' && (
+      {expandedCard === 'bike' && (
         <div
           ref={bubbleRef}
           className="relative mt-1 animate-in fade-in zoom-in-95 slide-in-from-top-2 transition-all duration-200"
@@ -798,11 +661,11 @@ function HeroSectionComponent({
           {/* Pointer triangle pointing up to the bike card */}
           <div
             className="absolute -top-2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-b-[8px] border-b-white/25 z-20"
-            style={{ left: '28px', transform: 'translateX(-50%)' }}
+            style={{ left: '24px', transform: 'translateX(-50%)' }}
           />
           <div
             className="absolute -top-[6.5px] w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent border-b-[7px] border-b-zinc-900/95 z-20"
-            style={{ left: '28px', transform: 'translateX(-50%)' }}
+            style={{ left: '24px', transform: 'translateX(-50%)' }}
           />
 
           <div className="rounded-2xl bg-zinc-950/90 backdrop-blur-2xl border border-white/20 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.7)] flex flex-col gap-3">

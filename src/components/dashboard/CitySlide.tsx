@@ -53,18 +53,14 @@ export const CitySlide = React.memo(function CitySlide({
     }
   }
 
-  const [isScrolled, setIsScrolled] = React.useState(false);
   const hasWeather = !!(weather && weather.hourly && currentIdx >= 0);
 
   return (
     <div
       id={`city-slide-${city.id}`}
-      className="w-full h-full min-w-full flex-shrink-0 select-none glass-isolate overflow-y-auto relative scrollbar-hide"
-      onScroll={(e) => {
-        setIsScrolled((e.currentTarget as HTMLDivElement).scrollTop > 10);
-      }}
+      className="w-full h-full min-w-full flex-shrink-0 select-none glass-isolate overflow-y-auto relative scrollbar-hide overscroll-y-contain"
     >
-      <div className="w-full min-h-full px-3.5 pt-7 pb-28 block space-y-3.5 relative">
+      <div className="w-full min-h-full px-3.5 pt-7 pb-28 flex flex-col gap-3.5 relative">
         {!hasWeather ? (
           weatherError && !weatherLoading ? (
             <div className="bg-zinc-900/60 backdrop-blur-xl border border-red-500/20 rounded-3xl p-6 text-center flex flex-col items-center gap-4 mt-12 shadow-2xl">
@@ -88,20 +84,17 @@ export const CitySlide = React.memo(function CitySlide({
           )
         ) : (
           <>
-            <div className="sticky top-2 z-40 transition-all duration-300">
-              <HeroSection
-                city={displayCity}
-                hourlyData={weather.hourly}
-                dailyData={weather.daily}
-                currentIdx={currentIdx}
-                dailyIdx={dailyIdx}
-                lastUpdated={weather.meta?.fetchedAt}
-                onRefresh={onRefresh}
-                isRefreshing={weatherLoading}
-                airQuality={weather.airQuality}
-                isScrolled={isScrolled}
-              />
-            </div>
+            <HeroSection
+              city={displayCity}
+              hourlyData={weather.hourly}
+              dailyData={weather.daily}
+              currentIdx={currentIdx}
+              dailyIdx={dailyIdx}
+              lastUpdated={weather.meta?.fetchedAt}
+              onRefresh={onRefresh}
+              isRefreshing={weatherLoading}
+              airQuality={weather.airQuality}
+            />
 
             <HourlyForecast
               hourlyData={weather.hourly}
