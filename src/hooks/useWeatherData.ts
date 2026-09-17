@@ -55,10 +55,11 @@ export function useWeatherData(cities: City[], gpsCoordsReady: boolean) {
   const lastRefreshTimeRef = useRef<number>(0);
   const isFetchingRef = useRef(false);
 
-  const fetchForCity = useCallback(async (city: City) => {
+  const fetchForCity = useCallback(async (city: City, force = false) => {
     if (city.latitude === null || city.longitude === null) return;
 
     const cacheKey = `wpwa_weather_${city.id}`;
+    let isCachedFresh = false;
 
     // 1. Check cache (Stale-While-Revalidate)
     try {
@@ -67,6 +68,8 @@ export function useWeatherData(cities: City[], gpsCoordsReady: boolean) {
         const parsed = JSON.parse(cached);
         // Zawsze pokazujemy dane z cache od razu, by przyspieszyć start aplikacji
         if (parsed.data && parsed.data.hourly?.time?.length > 0) {
+          const fetchedAt = parsed.timestamp || 0;
+          const isFresh = (Date.now() - fetchedAt) < CACHE_TTL;
           const result: WeatherResult = {
             hourly: parsed.data.hourly,
             daily: parsed.data.daily,
@@ -74,18 +77,24 @@ export function useWeatherData(cities: City[], gpsCoordsReady: boolean) {
             utc_offset_seconds: parsed.data.utc_offset_seconds,
             airQuality: parsed.airQuality || undefined,
             meta: {
-              fetchedAt: parsed.timestamp || Date.now(),
+              fetchedAt: fetchedAt || Date.now(),
               fromCache: true,
               lat: city.latitude,
               lon: city.longitude,
             },
           };
           setWeatherMap(prev => new Map(prev).set(city.id, result));
-          // Nie blokujemy (brak return) - aplikacja załaduje najnowsze dane w tle
+          if (!force && isFresh) {
+            isCachedFresh = true;
+          }
         }
       }
     } catch (e) {
       console.warn('Cache read error for', city.id, e);
+    }
+
+    if (isCachedFresh) {
+      return; // Cache jest świeży (< 10 min), oszczędzamy CPU, wątek JS i sieć
     }
 
     // 2. Fetch fresh data
@@ -157,15 +166,29 @@ export function useWeatherData(cities: City[], gpsCoordsReady: boolean) {
     }
   }, []);
 
-  const refreshAll = useCallback(async (currentCities: City[]) => {
+  const refreshAll = useCallback(async (currentCities: City[], force = false) => {
     if (isFetchingRef.current) return;
+    const now = Date.now();
+    // Zabezpieczenie przed kaskadowym odpalaniem na starcie (min. 15s przerwy chyba że wymuszono)
+    if (!force && now - lastRefreshTimeRef.current < 15_000) return;
+
     isFetchingRef.current = true;
-    setLoading(true);
-    lastRefreshTimeRef.current = Date.now();
+    lastRefreshTimeRef.current = now;
 
     try {
       const validCities = currentCities.filter(c => c.latitude !== null && c.longitude !== null);
-      await Promise.allSettled(validCities.map(city => fetchForCity(city)));
+      if (validCities.length === 0) return;
+
+      // Priorytetyzacja: natychmiast odpytujemy aktywne/pierwsze miasto, a pozostałe z lekkim opóźnieniem
+      const firstCity = validCities[0];
+      const remainingCities = validCities.slice(1);
+
+      await fetchForCity(firstCity, force);
+
+      if (remainingCities.length > 0) {
+        await new Promise(r => setTimeout(r, 60));
+        await Promise.allSettled(remainingCities.map(city => fetchForCity(city, force)));
+      }
     } finally {
       setLoading(false);
       isFetchingRef.current = false;
@@ -244,8 +267,8 @@ export function useWeatherData(cities: City[], gpsCoordsReady: boolean) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [citiesKey]);
 
-  const refreshAllPublic = useCallback(async () => {
-    await refreshAll(cities);
+  const refreshAllPublic = useCallback(async (force = true) => {
+    await refreshAll(cities, force);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [citiesKey, refreshAll]);
 

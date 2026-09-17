@@ -14,11 +14,22 @@ import { Toast } from '@/components/ui/Toast';
 import { UpdatePrompt } from '@/components/ui/UpdatePrompt';
 import { CitySlide } from '@/components/dashboard/CitySlide';
 
-import CitiesSheet from '@/components/cities/CitiesSheet';
-import SettingsModal from '@/components/settings/SettingsModal';
-import { LandscapeChart } from '@/components/dashboard/LandscapeChart';
+import dynamic from 'next/dynamic';
 import { useLandscape } from '@/hooks/useLandscape';
 import { RefreshCw } from 'lucide-react';
+
+const CitiesSheet = dynamic(() => import('@/components/cities/CitiesSheet'), {
+  ssr: false,
+});
+
+const SettingsModal = dynamic(() => import('@/components/settings/SettingsModal'), {
+  ssr: false,
+});
+
+const LandscapeChart = dynamic(
+  () => import('@/components/dashboard/LandscapeChart').then(mod => mod.LandscapeChart),
+  { ssr: false }
+);
 
 const GPS_CITY: City = {
   id: 'gps',
@@ -28,6 +39,29 @@ const GPS_CITY: City = {
   isGps: true,
   subtitle: 'Poznań',
 };
+
+function getInitialGpsCity(): City {
+  if (typeof window !== 'undefined') {
+    try {
+      const cached = localStorage.getItem('wpwa_last_known_gps');
+      const cachedCity = localStorage.getItem('wpwa_last_known_gps_city');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed.latitude === 'number' && typeof parsed.longitude === 'number') {
+          return {
+            id: 'gps',
+            name: 'Twoja lokalizacja',
+            latitude: parsed.latitude,
+            longitude: parsed.longitude,
+            isGps: true,
+            subtitle: cachedCity || 'Lokalizacja GPS',
+          };
+        }
+      }
+    } catch (_) {}
+  }
+  return GPS_CITY;
+}
 
 const INITIAL_CITIES: City[] = [
   {
@@ -172,8 +206,8 @@ export default function WeatherApp() {
   // GPS with instant fallback to Poznań
   const { coords, cityName, retry: retryGps } = useGeolocation();
 
-  // Live GPS city
-  const [gpsCityLive, setGpsCityLive] = useState<City>(GPS_CITY);
+  // Live GPS city (initialized from localStorage cached coords to prevent location flap)
+  const [gpsCityLive, setGpsCityLive] = useState<City>(getInitialGpsCity);
 
   useEffect(() => {
     if (coords) {

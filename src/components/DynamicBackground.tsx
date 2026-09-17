@@ -59,9 +59,19 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
   const gradient = getBgGradient(weatherCode, isDay);
   const effectType = getWeatherEffectType(weatherCode, isDay);
 
+  // Pause particle computation and rendering when tab is hidden or phone screen is off
+  const [isPageVisible, setIsPageVisible] = React.useState(true);
+  React.useEffect(() => {
+    const handleVisibility = () => {
+      setIsPageVisible(document.visibilityState === 'visible');
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
+
   // Rain particles: 2-plane depth (foreground crisp streaks + background fine blurred streaks)
   const rainParticles: RainParticle[] = useMemo(() => {
-    if (effectType !== 'rain' && effectType !== 'storm') return [];
+    if (!isPageVisible || (effectType !== 'rain' && effectType !== 'storm')) return [];
     return Array.from({ length: 38 }).map((_, i) => ({
       id: i,
       left: (i * 2.65 + 1.2) % 100,
@@ -71,11 +81,11 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
       opacity: i % 3 === 0 ? 0.65 : 0.35,
       isForeground: i % 3 === 0,
     }));
-  }, [effectType]);
+  }, [effectType, isPageVisible]);
 
   // Drizzle particles (mżawka - drobne, świetliste kropelki)
   const drizzleParticles: DrizzleParticle[] = useMemo(() => {
-    if (effectType !== 'drizzle') return [];
+    if (!isPageVisible || effectType !== 'drizzle') return [];
     return Array.from({ length: 32 }).map((_, i) => ({
       id: i,
       left: (i * 3.1 + 1.5) % 98,
@@ -84,11 +94,11 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
       delay: ((i * 9) % 25) * 0.1,
       opacity: 0.35 + ((i * 4) % 3) * 0.15,
     }));
-  }, [effectType]);
+  }, [effectType, isPageVisible]);
 
   // Snow particles: 2-plane depth (large soft blurred bokeh flakes + crisp foreground flakes)
   const snowParticles: SnowParticle[] = useMemo(() => {
-    if (effectType !== 'snow') return [];
+    if (!isPageVisible || effectType !== 'snow') return [];
     return Array.from({ length: 30 }).map((_, i) => ({
       id: i,
       left: (i * 3.3 + 1.8) % 98,
@@ -97,11 +107,11 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
       delay: ((i * 7) % 30) * 0.1,
       isBokeh: i % 4 === 0,
     }));
-  }, [effectType]);
+  }, [effectType, isPageVisible]);
 
   // Star particles: bright glowing stars + faint twinkling background stars
   const starParticles: StarParticle[] = useMemo(() => {
-    if (effectType !== 'starry' && effectType !== 'partly-night') return [];
+    if (!isPageVisible || (effectType !== 'starry' && effectType !== 'partly-night')) return [];
     const count = effectType === 'starry' ? 42 : 22;
     return Array.from({ length: count }).map((_, i) => ({
       id: i,
@@ -112,11 +122,11 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
       delay: ((i * 5) % 30) * 0.1,
       isBright: i % 5 === 0,
     }));
-  }, [effectType]);
+  }, [effectType, isPageVisible]);
 
   // Sun motes: golden floating light motes
   const sunMotes: SunMote[] = useMemo(() => {
-    if (effectType !== 'sunny') return [];
+    if (!isPageVisible || effectType !== 'sunny') return [];
     return Array.from({ length: 18 }).map((_, i) => ({
       id: i,
       left: 35 + ((i * 4.2) % 62),
@@ -125,7 +135,7 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
       duration: 3.5 + ((i * 2) % 4),
       delay: ((i * 7) % 20) * 0.2,
     }));
-  }, [effectType]);
+  }, [effectType, isPageVisible]);
 
   const hasClouds = ['partly', 'partly-night', 'cloudy', 'cloudy-night', 'storm', 'drizzle', 'fog'].includes(effectType);
 
@@ -178,12 +188,13 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
           {sunMotes.map((m) => (
             <div
               key={m.id}
-              className="absolute rounded-full bg-amber-100 pointer-events-none shadow-[0_0_8px_rgba(255,220,100,0.9)] gpu-composited"
+              className="absolute rounded-full bg-amber-100 pointer-events-none gpu-composited"
               style={{
                 left: `${m.left}%`,
                 top: `${m.top}%`,
                 width: `${m.size}px`,
                 height: `${m.size}px`,
+                filter: 'drop-shadow(0 0 3px rgba(255,220,100,0.85))',
                 animation: `sun-mote ${m.duration}s ease-in-out ${m.delay}s infinite`,
               }}
             />
@@ -259,14 +270,13 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
           {starParticles.map((p) => (
             <div
               key={p.id}
-              className={`absolute bg-white rounded-full pointer-events-none gpu-composited ${
-                p.isBright ? 'shadow-[0_0_8px_rgba(255,255,255,1)]' : 'shadow-[0_0_3px_rgba(200,225,255,0.7)]'
-              }`}
+              className="absolute bg-white rounded-full pointer-events-none gpu-composited"
               style={{
                 left: `${p.left}%`,
                 top: `${p.top}%`,
                 width: `${p.size}px`,
                 height: `${p.size}px`,
+                filter: p.isBright ? 'drop-shadow(0 0 3px rgba(255,255,255,0.95))' : 'drop-shadow(0 0 1.5px rgba(200,225,255,0.65))',
                 animation: `twinkle ${p.duration}s ease-in-out ${p.delay}s infinite`,
               }}
             />
@@ -296,11 +306,12 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
           {drizzleParticles.map((p) => (
             <div
               key={p.id}
-              className="absolute top-[-25px] w-[1px] bg-gradient-to-b from-cyan-100 to-cyan-400 rounded-full pointer-events-none shadow-[0_0_4px_rgba(34,211,238,0.6)] gpu-composited"
+              className="absolute top-[-25px] w-[1px] bg-gradient-to-b from-cyan-100 to-cyan-400 rounded-full pointer-events-none gpu-composited"
               style={{
                 left: `${p.left}%`,
                 height: `${p.height}px`,
                 opacity: p.opacity,
+                filter: 'drop-shadow(0 0 1.5px rgba(34,211,238,0.6))',
                 animation: `drizzle-fall ${p.duration}s linear ${p.delay}s infinite`,
               }}
             />
@@ -325,13 +336,14 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
               key={p.id}
               className={`absolute top-[-40px] rounded-full pointer-events-none gpu-composited ${
                 p.isForeground
-                  ? 'w-[1.8px] bg-gradient-to-b from-cyan-100 via-blue-300 to-blue-400 shadow-[0_0_6px_rgba(56,189,248,0.7)]'
+                  ? 'w-[1.8px] bg-gradient-to-b from-cyan-100 via-blue-300 to-blue-400'
                   : 'w-[1px] bg-blue-200/50'
               }`}
               style={{
                 left: `${p.left}%`,
                 height: `${p.height}px`,
                 opacity: p.opacity,
+                filter: p.isForeground ? 'drop-shadow(0 0 2px rgba(56,189,248,0.7))' : undefined,
                 animation: `rain-fall ${p.duration}s linear ${p.delay}s infinite`,
               }}
             />
@@ -381,13 +393,14 @@ function DynamicBackgroundComponent({ weatherCode, isDay }: DynamicBackgroundPro
               key={p.id}
               className={`absolute top-[-25px] rounded-full pointer-events-none gpu-composited ${
                 p.isBokeh
-                  ? 'bg-white/45 shadow-[0_0_10px_rgba(255,255,255,0.6)]'
-                  : 'bg-white/95 shadow-[0_0_6px_rgba(255,255,255,0.9)]'
+                  ? 'bg-white/40 blur-[0.8px]'
+                  : 'bg-white/95'
               }`}
               style={{
                 left: `${p.left}%`,
                 width: `${p.size}px`,
                 height: `${p.size}px`,
+                filter: !p.isBokeh ? 'drop-shadow(0 0 2px rgba(255,255,255,0.85))' : undefined,
                 animation: `snow-drift ${p.duration}s ease-in-out ${p.delay}s infinite`,
               }}
             />

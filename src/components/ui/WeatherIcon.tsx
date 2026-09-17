@@ -136,6 +136,7 @@ export function WeatherIcon({
           height={size}
           className="w-full h-full object-contain pointer-events-none drop-shadow-md"
           loading="eager"
+          decoding="async"
           onError={() => setHasError(true)}
         />
       ) : (

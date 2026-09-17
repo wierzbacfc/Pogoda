@@ -5,7 +5,12 @@ import { DailyData, HourlyData } from '@/lib/types';
 import { getDayLabel, getDateKeyFromHour, isWeekendDay } from '@/lib/utils';
 import { WeatherIcon } from '@/components/ui/WeatherIcon';
 import { Calendar, ChevronDown, ChevronRight } from 'lucide-react';
-import { DayDetailChart } from './DayDetailChart';
+import dynamic from 'next/dynamic';
+
+const DayDetailChart = dynamic(
+  () => import('./DayDetailChart').then((mod) => mod.DayDetailChart),
+  { ssr: false }
+);
 
 interface DailyForecastProps {
   dailyData: DailyData;

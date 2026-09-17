@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pogoda-pwa-v58';
+const CACHE_NAME = 'pogoda-pwa-v59';
 
 const STATIC_ASSETS = [
   './',
@@ -84,23 +84,31 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // For navigation requests (HTML pages): network-first
+  // For navigation requests (HTML pages): stale-while-revalidate for instant 0ms app launch from cache
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          // Cache the latest page
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
-          return response;
-        })
-        .catch(() => {
-          return caches.match(event.request).then((cached) => {
-            return cached || caches.match('./') || caches.match('/');
-          });
-        })
+      caches.match(event.request).then((cachedResponse) => {
+        const fetchPromise = fetch(event.request)
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.ok) {
+              const responseClone = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, responseClone);
+              });
+            }
+            return networkResponse;
+          })
+          .catch(() => cachedResponse);
+
+        if (cachedResponse) {
+          event.waitUntil(fetchPromise);
+          return cachedResponse;
+        }
+
+        return fetchPromise.catch(() => {
+          return caches.match('./') || caches.match('/') || caches.match('index.html');
+        });
+      })
     );
     return;
   }

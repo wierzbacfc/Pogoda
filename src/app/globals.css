@@ -322,6 +322,11 @@ div[data-next-dev-tools] {
   backdrop-filter: none !important;
 }
 
+/* Pause moving particles during swipe gesture so GPU can focus 100% on 120 FPS transform */
+.is-swiping .gpu-composited {
+  animation-play-state: paused !important;
+}
+
 /* Layer compositing & hardware acceleration helpers */
 .gpu-composited {
   transform: translate3d(0, 0, 0);
