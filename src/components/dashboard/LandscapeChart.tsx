@@ -146,6 +146,25 @@ function interpolateMultiStops(value: number, stops: ColorStop[]): string {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
+// Helper functions for dynamic apparent temperature difference shadow (shade & opacity scale with magnitude)
+function getWarmerShadowShade(diff: number): { color: string; opacity: number } {
+  if (diff <= 0) return { color: '#fb923c', opacity: 0.0 };
+  if (diff === 1) return { color: '#f59e0b', opacity: 0.16 }; // soft amber (gentle warmth)
+  if (diff === 2) return { color: '#f97316', opacity: 0.28 }; // warm orange
+  if (diff === 3) return { color: '#ef4444', opacity: 0.42 }; // rich vermilion / red
+  if (diff === 4) return { color: '#dc2626', opacity: 0.56 }; // deep crimson red
+  return { color: '#b91c1c', opacity: 0.68 };                 // intense summer heat red (>= 5)
+}
+
+function getColderShadowShade(coldDiff: number): { color: string; opacity: number } {
+  if (coldDiff <= 0) return { color: '#38bdf8', opacity: 0.0 };
+  if (coldDiff === 1) return { color: '#7dd3fc', opacity: 0.16 }; // pale sky blue (light breeze)
+  if (coldDiff === 2) return { color: '#38bdf8', opacity: 0.28 }; // crisp cyan blue
+  if (coldDiff === 3) return { color: '#2563eb', opacity: 0.42 }; // rich royal blue
+  if (coldDiff === 4) return { color: '#1d4ed8', opacity: 0.56 }; // deep cobalt blue
+  return { color: '#1e3a8a', opacity: 0.68 };                    // intense deep navy/indigo (>= 5)
+}
+
 const TEMP_COLOR_STOPS: ColorStop[] = [
   { value: -12, rgb: [167, 139, 250] }, // Violet frost
   { value: -4, rgb: [129, 140, 248] },  // Indigo cold
@@ -818,7 +837,10 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
     const elTemp = hudRef.current.querySelector('[data-hud="temp"]');
     if (elTemp) elTemp.textContent = `${h.temp}°`;
     const elApparent = hudRef.current.querySelector('[data-hud="apparent"]');
-    if (elApparent) elApparent.textContent = `odcz. ${h.apparentTemp}°`;
+    if (elApparent) {
+      elApparent.textContent = `odcz. ${h.apparentTemp}°`;
+      elApparent.className = 'text-zinc-400 ml-1';
+    }
     
     const elCloudCover = hudRef.current.querySelector('[data-hud="cloud-cover"]');
     if (elCloudCover) elCloudCover.textContent = h.isDay ? `${h.sunPercent}% słońce` : `${h.cloudCover}%`;
@@ -1319,6 +1341,10 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
   }));
   const apparentSplineD = getSvgSpline(apparentPoints);
   const apparentAreaD = `${apparentSplineD} L ${lastX.toFixed(1)} ${tempBaseY} L ${firstX.toFixed(1)} ${tempBaseY} Z`;
+
+  // Clip paths to isolate difference regions between actual and apparent temperature
+  const clipAboveTempD = `${tempSplineD} L ${lastX.toFixed(1)} 0 L ${firstX.toFixed(1)} 0 Z`;
+  const clipAboveApparentD = `${apparentSplineD} L ${lastX.toFixed(1)} 0 L ${firstX.toFixed(1)} 0 Z`;
 
   // Chart 2: Wind, Gusts & Cloud Cover (viewBox height: panelHeight)
   const windBaseY = panelHeight - 25;
@@ -1855,12 +1881,47 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
                     <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
                   </linearGradient>
 
-                  {/* Apparent temperature ambient fill gradient */}
-                  <linearGradient id="landscapeApparentAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#c4b5fd" stopOpacity="0.09" />
-                    <stop offset="60%" stopColor="#818cf8" stopOpacity="0.02" />
-                    <stop offset="100%" stopColor="#818cf8" stopOpacity="0" />
+                  {/* Difference Shadow: Warmer (apparentTemp > temp) - shade & opacity scale with magnitude */}
+                  <linearGradient id="landscapeFeelsWarmerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    {hours.map((h, i) => {
+                      const pct = ((i + 0.5) / hours.length) * 100;
+                      const diff = h.apparentTemp - h.temp;
+                      const { color, opacity } = getWarmerShadowShade(diff);
+                      return (
+                        <stop
+                          key={`warmer-shade-${i}`}
+                          offset={`${pct.toFixed(1)}%`}
+                          stopColor={color}
+                          stopOpacity={opacity.toFixed(2)}
+                        />
+                      );
+                    })}
                   </linearGradient>
+
+                  {/* Difference Shadow: Colder (apparentTemp < temp) - shade & opacity scale with magnitude */}
+                  <linearGradient id="landscapeFeelsColderGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    {hours.map((h, i) => {
+                      const pct = ((i + 0.5) / hours.length) * 100;
+                      const coldDiff = h.temp - h.apparentTemp;
+                      const { color, opacity } = getColderShadowShade(coldDiff);
+                      return (
+                        <stop
+                          key={`colder-shade-${i}`}
+                          offset={`${pct.toFixed(1)}%`}
+                          stopColor={color}
+                          stopOpacity={opacity.toFixed(2)}
+                        />
+                      );
+                    })}
+                  </linearGradient>
+
+                  {/* Clip paths for exact Bézier difference ribbon boundaries */}
+                  <clipPath id="landscapeClipAboveTemp">
+                    <path d={clipAboveTempD} />
+                  </clipPath>
+                  <clipPath id="landscapeClipAboveApparent">
+                    <path d={clipAboveApparentD} />
+                  </clipPath>
 
                   {/* Refined Neomorphic Rain & Snow Bar Liquid Gradients */}
                   <linearGradient id="landscapeRainBarGrad" x1="0" y1="0" x2="0" y2="1">
@@ -2062,23 +2123,58 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
                   style={{ display: activeHourIdx !== null ? '' : 'none' }}
                 />
 
-                {/* Apparent Temperature: Soft ambient background fill (no values, background only) */}
-                <path d={apparentAreaD} fill="url(#landscapeApparentAreaGrad)" className="pointer-events-none" />
+                {/* Base Temperature Area Glow */}
+                <path d={tempAreaD} fill="url(#landscapeTempAreaGrad)" />
 
-                {/* Apparent Temperature: Refined, crisp dashed guide curve in background */}
+                {/* Apparent vs Actual Difference Ribbon: Warmer (apparentTemp > temp) */}
+                <path
+                  d={apparentAreaD}
+                  clipPath="url(#landscapeClipAboveTemp)"
+                  fill="url(#landscapeFeelsWarmerGrad)"
+                  className="pointer-events-none"
+                />
+
+                {/* Apparent vs Actual Difference Ribbon: Colder (apparentTemp < temp) */}
+                <path
+                  d={tempAreaD}
+                  clipPath="url(#landscapeClipAboveApparent)"
+                  fill="url(#landscapeFeelsColderGrad)"
+                  className="pointer-events-none"
+                />
+
+                {/* Ambient shadow feathering along temperature curve into warmer region */}
+                <path
+                  d={tempSplineD}
+                  fill="none"
+                  stroke="url(#landscapeFeelsWarmerGrad)"
+                  strokeWidth="5"
+                  strokeOpacity="0.25"
+                  clipPath="url(#landscapeClipAboveTemp)"
+                  className="pointer-events-none"
+                />
+
+                {/* Ambient shadow feathering along temperature curve into colder region */}
+                <path
+                  d={tempSplineD}
+                  fill="none"
+                  stroke="url(#landscapeFeelsColderGrad)"
+                  strokeWidth="5"
+                  strokeOpacity="0.25"
+                  clipPath="url(#landscapeClipAboveApparent)"
+                  className="pointer-events-none"
+                />
+
+                {/* Apparent Temperature: Almost invisible subtle bounding boundary */}
                 <path
                   d={apparentSplineD}
                   fill="none"
-                  stroke="rgba(196, 181, 253, 0.50)"
-                  strokeWidth="1.2"
-                  strokeDasharray="3 3"
+                  stroke="rgba(255, 255, 255, 0.22)"
+                  strokeWidth="0.75"
+                  strokeDasharray="2 3"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]"
+                  className="pointer-events-none"
                 />
-
-                {/* Temperature Area Glow */}
-                <path d={tempAreaD} fill="url(#landscapeTempAreaGrad)" />
 
                 {/* Soft ambient thermal under-glow reflecting on glass */}
                 <path
@@ -2120,11 +2216,19 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
                 {/* Temperature Nodes & Degree Values with Tmin/Tmax Extremes & Pulsing 'Teraz' */}
                 {tempPoints.map((p, idx) => {
                   const h = hours[idx];
+                  const appP = apparentPoints[idx];
                   const isSelected = activeHourIdx === idx;
                   const isCurrent = h.isCurrent;
                   const isDayMax = dayMaxIndices.has(idx);
                   const isDayMin = dayMinIndices.has(idx);
                   const tColor = getSmoothTempColor(h.temp);
+
+                  // Difference between actual air temp and feels-like temp (highlight only when 3° or more)
+                  const diff = h.apparentTemp - h.temp;
+                  const absDiff = Math.abs(diff);
+                  const isSignificantDiff = absDiff >= 3;
+                  const isWarmer = diff > 0;
+                  const diffShade = isWarmer ? getWarmerShadowShade(diff) : getColderShadowShade(absDiff);
 
                   // Collision avoidance: if close to a sunrise/sunset badge, place temp label below to avoid overlap
                   const nearSunEvent = sunEvents.some(ev => Math.abs(p.x - ev.x) < 22 && p.y < 25);
@@ -2142,6 +2246,61 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
                           stroke="#22d3ee"
                           strokeWidth="2"
                           className="animate-pulse drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]"
+                        />
+                      )}
+
+                      {/* Visual difference indicator: Connecting dotted guide line for diff >= 3° */}
+                      {isSignificantDiff && appP && (
+                        <line
+                          x1={p.x}
+                          y1={p.y}
+                          x2={p.x}
+                          y2={appP.y}
+                          stroke={diffShade.color}
+                          strokeWidth="1.2"
+                          strokeDasharray="2 2"
+                          strokeOpacity="0.85"
+                          className="pointer-events-none"
+                        />
+                      )}
+
+                      {/* Visual difference indicator: Marker and Full Apparent Temp value on apparent temp curve */}
+                      {isSignificantDiff && appP && (
+                        <>
+                          <circle
+                            cx={p.x}
+                            cy={appP.y}
+                            r="2.8"
+                            fill={diffShade.color}
+                            stroke="#ffffff"
+                            strokeWidth="0.8"
+                            className="pointer-events-none drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
+                          />
+                          <text
+                            x={p.x}
+                            y={isWarmer ? appP.y - 5.5 : appP.y + 9.5}
+                            fill={isWarmer ? '#fca5a5' : '#93c5fd'}
+                            fontSize="7.5"
+                            fontWeight="900"
+                            textAnchor="middle"
+                            className="font-mono font-black select-none pointer-events-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+                          >
+                            {h.apparentTemp}°
+                          </text>
+                        </>
+                      )}
+
+                      {/* Visual difference indicator: Outer glowing halo on temp node when diff >= 3° */}
+                      {isSignificantDiff && !isCurrent && !isSelected && !isDayMax && !isDayMin && (
+                        <circle
+                          cx={p.x}
+                          cy={p.y}
+                          r="6.5"
+                          fill={diffShade.color}
+                          fillOpacity="0.25"
+                          stroke={diffShade.color}
+                          strokeWidth="1.5"
+                          className="animate-pulse"
                         />
                       )}
 
@@ -2195,15 +2354,25 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
                         />
                       )}
 
-                      {/* Regular Node Circle */}
+                      {/* Node Circle (highlighted with distinct color & border when diff >= 3°) */}
                       {!isCurrent && (
                         <circle
                           cx={p.x}
                           cy={p.y}
-                          r={isSelected ? 3.8 : isDayMax || isDayMin ? 3.2 : 2}
-                          fill={isSelected ? '#22d3ee' : isDayMax ? '#f59e0b' : isDayMin ? '#38bdf8' : tColor}
-                          stroke="#09090b"
-                          strokeWidth="1"
+                          r={isSelected ? 3.8 : isDayMax || isDayMin ? 3.2 : isSignificantDiff ? 3.0 : 2}
+                          fill={
+                            isSelected
+                              ? '#22d3ee'
+                              : isDayMax
+                              ? '#f59e0b'
+                              : isDayMin
+                              ? '#38bdf8'
+                              : isSignificantDiff
+                              ? diffShade.color
+                              : tColor
+                          }
+                          stroke={isSignificantDiff ? '#ffffff' : '#09090b'}
+                          strokeWidth={isSignificantDiff ? 1.2 : 1}
                         />
                       )}
 
@@ -2529,11 +2698,30 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
                     ))}
                   </linearGradient>
 
-                  {/* Refined subtle translucent solar glow gradient */}
-                  <linearGradient id="landscapeSunAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.22" />
-                    <stop offset="60%" stopColor="#fbbf24" stopOpacity="0.08" />
-                    <stop offset="100%" stopColor="#d97706" stopOpacity="0.0" />
+                  {/* Vertical Solar Insolation Gradient based on Chart Height (userSpaceOnUse) */}
+                  {/* Height represents amount of sun: top (y=sunPeakY) is 100% sun, bottom (y=sunBaseY) is 0% sun */}
+                  <linearGradient id="landscapeSunAreaGrad" gradientUnits="userSpaceOnUse" x1="0" y1={sunPeakY} x2="0" y2={sunBaseY}>
+                    {/* Peak 100% Sun (highest point on chart): Highly luminous, bright radiant sun gold */}
+                    <stop offset="0%" stopColor="#fffbeb" stopOpacity="0.85" />
+                    {/* Top 90% Sun: Intense glowing warm yellow-gold */}
+                    <stop offset="12%" stopColor="#fef08a" stopOpacity="0.78" />
+                    {/* ~75% Sun height: Vibrant rich golden amber */}
+                    <stop offset="30%" stopColor="#fbbf24" stopOpacity="0.62" />
+                    {/* ~50% Sun height: Glowing solar amber */}
+                    <stop offset="55%" stopColor="#f59e0b" stopOpacity="0.45" />
+                    {/* ~25% Sun height: Warm orange-amber */}
+                    <stop offset="78%" stopColor="#f97316" stopOpacity="0.25" />
+                    {/* Baseline 0% Sun (bottom of chart): Soft warm grounding at base */}
+                    <stop offset="100%" stopColor="#ea580c" stopOpacity="0.06" />
+                  </linearGradient>
+
+                  {/* Vertical Solar Curve Line Gradient based on Chart Height */}
+                  <linearGradient id="landscapeSunLineGrad" gradientUnits="userSpaceOnUse" x1="0" y1={sunPeakY} x2="0" y2={sunBaseY}>
+                    <stop offset="0%" stopColor="#ffffff" stopOpacity="1.0" />
+                    <stop offset="15%" stopColor="#fef08a" stopOpacity="1.0" />
+                    <stop offset="40%" stopColor="#fde047" stopOpacity="0.95" />
+                    <stop offset="70%" stopColor="#fbbf24" stopOpacity="0.90" />
+                    <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.80" />
                   </linearGradient>
 
                   {/* Soft translucent cloud cover canopy gradient */}
@@ -2750,18 +2938,30 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
                   const activePt = seg.points.find((p) => p.hourIdx === activeHourIdx);
                   return (
                     <g key={`sun-segment-${sIdx}`} className="pointer-events-none">
-                      {/* Soft golden solar veil fill */}
-                      <path d={seg.areaD} fill="url(#landscapeSunAreaGrad)" />
-                      {/* Crisp solar intensity curve */}
+                      {/* Solar area fill with vertical gradient based on chart height */}
+                      <path
+                        d={seg.areaD}
+                        fill="url(#landscapeSunAreaGrad)"
+                      />
+                      {/* Soft ambient solar aura stroke behind line */}
                       <path
                         d={seg.strokeD}
                         fill="none"
-                        stroke="#f59e0b"
-                        strokeWidth="1.3"
-                        strokeOpacity="0.8"
+                        stroke="#fbbf24"
+                        strokeWidth="3.2"
+                        strokeOpacity="0.35"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        className="drop-shadow-[0_0_4px_rgba(245,158,11,0.45)]"
+                      />
+                      {/* Crisp solar intensity curve with dynamic sun-gold line gradient */}
+                      <path
+                        d={seg.strokeD}
+                        fill="none"
+                        stroke="url(#landscapeSunLineGrad)"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="drop-shadow-[0_0_6px_rgba(254,240,138,0.7)]"
                       />
                       {/* Highlighted solar marker on active/selected hour */}
                       {activePt && (

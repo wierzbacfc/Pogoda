@@ -20,7 +20,7 @@
       "Helvetica Neue", Arial, sans-serif;
     background-color: #09090b;
     color: #fafafa;
-    overflow-x: hidden;
+    overflow-x: clip;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }

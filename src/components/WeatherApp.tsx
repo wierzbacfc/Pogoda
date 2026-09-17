@@ -230,7 +230,7 @@ export default function WeatherApp() {
       containerWidthRef.current = mainRef.current.clientWidth || window.innerWidth || 392;
     }
 
-    if (typeof window !== 'undefined' && window.scrollY <= 2) {
+    if (typeof window !== 'undefined' && (document.getElementById('city-slide-' + cities[activeCityIndex]?.id)?.scrollTop || 0) <= 2) {
       pullStartRef.current = { y: touch.clientY, active: true };
     } else {
       pullStartRef.current.active = false;
@@ -298,7 +298,7 @@ export default function WeatherApp() {
     // 2. Vertical Pull-To-Refresh Mode
     if (pullStartRef.current.active && !isPullRefreshing && isHorizontalGestureRef.current === false) {
       const diffY = touch.clientY - pullStartRef.current.y;
-      if (diffY > 0 && typeof window !== 'undefined' && window.scrollY <= 2) {
+      if (diffY > 0 && typeof window !== 'undefined' && (document.getElementById('city-slide-' + cities[activeCityIndex]?.id)?.scrollTop || 0) <= 2) {
         const damped = Math.min(85, Math.pow(diffY, 0.82));
         setPullDistance(damped);
       } else {
@@ -587,11 +587,10 @@ export default function WeatherApp() {
     fetchForCity(newCity);
     showToast(`Dodano ${newCity.name}`, 'success');
   }, [cities, setSavedCities, fetchForCity, showToast]);
-
   return (
-    <div className="min-h-screen w-full bg-zinc-950 flex justify-center text-zinc-100 font-sans selection:bg-blue-500/30">
+    <div className="h-screen w-full bg-zinc-950 flex justify-center text-zinc-100 font-sans selection:bg-blue-500/30 overflow-hidden">
       {/* Mobile-first centered app container tailored for Xiaomi 11 and modern phones */}
-      <div className="w-full max-w-[420px] min-h-screen relative flex flex-col justify-between overflow-x-hidden shadow-2xl">
+      <div className="w-full max-w-[420px] h-full relative flex flex-col justify-between overflow-hidden shadow-2xl">
         {/* Dynamic gradient background */}
         <DynamicBackground weatherCode={currentWeatherCode} isDay={currentIsDay} />
 
@@ -623,7 +622,7 @@ export default function WeatherApp() {
         {/* Main Weather Screen Track (Horizontal City Pager) */}
         <main
           ref={mainRef}
-          className="relative z-10 pb-28 flex-1 overflow-x-hidden select-none touch-pan-y"
+          className="relative z-10 flex-1 min-h-0 overflow-hidden select-none touch-pan-y"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -631,7 +630,7 @@ export default function WeatherApp() {
         >
           <div
             ref={trackRef}
-            className="flex w-full flex-nowrap items-start will-change-transform"
+            className="flex w-full h-full flex-nowrap items-stretch will-change-transform"
             style={{
               transform: `translate3d(${-activeCityIndex * 100}%, 0, 0)`,
               transition: 'transform 300ms cubic-bezier(0.2, 0.9, 0.3, 1)',

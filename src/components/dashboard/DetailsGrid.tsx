@@ -16,20 +16,9 @@ import {
   Sparkles,
   ChevronRight,
   X,
-  Thermometer,
-  ArrowUp,
-  ArrowDown,
 } from 'lucide-react';
 
-export type MetricType =
-  | 'sun'
-  | 'temp_range'
-  | 'uv'
-  | 'pressure'
-  | 'humidity'
-  | 'visibility'
-  | 'cloudiness'
-  | 'moon';
+export type MetricType = 'sun' | 'visibility' | 'cloudiness' | 'humidity' | 'uv' | 'pressure';
 
 interface DetailsGridProps {
   hourlyData: HourlyData;
@@ -98,38 +87,9 @@ function DetailsGridComponent({ hourlyData, dailyData, currentIdx, dailyIdx }: D
     else if (pressure < 1005) pressureDesc = 'Niskie (Niż)';
   }
 
-  // Daily Min / Max Temperatures & Amplitude
-  const minTemp = dailyData.temperature_2m_min[dailyIdx] || 0;
-  const maxTemp = dailyData.temperature_2m_max[dailyIdx] || 0;
-  const tempAmplitude = Math.max(0, Math.round(maxTemp - minTemp));
-  const tempSpan = Math.max(1, maxTemp - minTemp);
-  const currentTempPos = Math.max(0, Math.min(100, ((temp - minTemp) / tempSpan) * 100));
-
-  // Determine peak & low temperature hours
-  const todayDateKey = dailyData.time?.[dailyIdx] || '';
-  let peakHour = '14:00';
-  let lowHour = '05:00';
-  if (hourlyData.time && hourlyData.temperature_2m) {
-    let maxVal = -Infinity;
-    let minVal = Infinity;
-    for (let i = 0; i < hourlyData.time.length; i++) {
-      if (todayDateKey && hourlyData.time[i].startsWith(todayDateKey)) {
-        const val = hourlyData.temperature_2m[i];
-        if (val > maxVal) {
-          maxVal = val;
-          peakHour = formatTime(hourlyData.time[i]);
-        }
-        if (val < minVal) {
-          minVal = val;
-          lowHour = formatTime(hourlyData.time[i]);
-        }
-      }
-    }
-  }
-
   // Parabolic sun coordinates for SVG
-  const sunX = 12 + sunArc.progress * 106;
-  const sunY = 32 - Math.sin(sunArc.progress * Math.PI) * 25;
+  const sunX = 10 + sunArc.progress * 100;
+  const sunY = 32 - Math.sin(sunArc.progress * Math.PI) * 24;
 
   // Render content inside the translucent speech bubble (dymek)
   const renderBubble = (type: MetricType, isLeft: boolean) => {
@@ -140,71 +100,27 @@ function DetailsGridComponent({ hourlyData, dailyData, currentIdx, dailyIdx }: D
 
     if (type === 'sun') {
       headerIcon = <Sun size={16} className="text-amber-400" />;
-      title = 'Wschód i Zachód Słońca';
-      badge = sunArc.isDay ? sunArc.countdown : (sunArc.countdown || 'Noc');
+      title = 'Słońce i Księżyc';
+      badge = sunArc.isDay ? sunArc.countdown : 'Noc';
       content = (
         <div className="flex flex-col gap-2.5">
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="p-2.5 rounded-2xl bg-white/[0.04] border border-white/5 flex flex-col">
-              <span className="text-[10px] text-zinc-400 uppercase font-bold flex items-center gap-1">
-                <Sunrise size={12} className="text-amber-400" /> Wschód słońca
-              </span>
-              <span className="text-sm font-bold text-white mt-0.5 tabular-nums">{formatTime(sunrise)}</span>
-              <span className="text-[10px] text-amber-300/80 mt-0.5">Złota godzina poranna</span>
+              <span className="text-[10px] text-zinc-400 uppercase font-bold">Wschód słońca</span>
+              <span className="text-sm font-bold text-white mt-0.5">{formatTime(sunrise)}</span>
             </div>
             <div className="p-2.5 rounded-2xl bg-white/[0.04] border border-white/5 flex flex-col">
-              <span className="text-[10px] text-zinc-400 uppercase font-bold flex items-center gap-1">
-                <Sunset size={12} className="text-orange-400" /> Zachód słońca
-              </span>
-              <span className="text-sm font-bold text-orange-300 mt-0.5 tabular-nums">{formatTime(sunset)}</span>
-              <span className="text-[10px] text-orange-300/80 mt-0.5">Złota godzina wieczorna</span>
+              <span className="text-[10px] text-zinc-400 uppercase font-bold">Zachód słońca</span>
+              <span className="text-sm font-bold text-amber-400 mt-0.5">{formatTime(sunset)}</span>
             </div>
           </div>
           <div className="p-2.5 rounded-2xl bg-white/[0.04] border border-white/5 flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 text-zinc-300">
-              <Sparkles size={13} className="text-amber-400" />
-              <span>Długość dnia</span>
+              <Moon size={14} className="text-indigo-400" />
+              <span>Faza księżyca</span>
             </div>
-            <span className="font-bold text-amber-300 tabular-nums">{sunArc.daylightStr}</span>
+            <span className="font-bold text-indigo-300">{moon.name} ({moon.illumination}%)</span>
           </div>
-          <p className="text-xs text-zinc-300 bg-amber-500/10 border border-amber-400/20 rounded-2xl p-2.5 leading-relaxed">
-            {sunArc.isDay
-              ? `Obecnie trwa dzień (${sunArc.solarPhase}). ${sunArc.countdown}.`
-              : `Obecnie trwa noc. ${sunArc.countdown}.`}
-          </p>
-        </div>
-      );
-    } else if (type === 'temp_range') {
-      headerIcon = <Thermometer size={16} className="text-cyan-400" />;
-      title = 'Zakres temperatur dobowych';
-      badge = `Δ ${tempAmplitude}°C`;
-      content = (
-        <div className="flex flex-col gap-2.5">
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="p-2.5 rounded-2xl bg-white/[0.04] border border-white/5 flex flex-col">
-              <span className="text-[10px] text-zinc-400 uppercase font-bold flex items-center gap-1">
-                <ArrowUp size={12} className="text-amber-400" /> Maks. dzisiaj
-              </span>
-              <span className="text-sm font-bold text-amber-300 mt-0.5 tabular-nums">{Math.round(maxTemp)}°C</span>
-              <span className="text-[10px] text-zinc-400 mt-0.5">Szczyt: ~{peakHour}</span>
-            </div>
-            <div className="p-2.5 rounded-2xl bg-white/[0.04] border border-white/5 flex flex-col">
-              <span className="text-[10px] text-zinc-400 uppercase font-bold flex items-center gap-1">
-                <ArrowDown size={12} className="text-cyan-400" /> Min. dzisiaj
-              </span>
-              <span className="text-sm font-bold text-cyan-300 mt-0.5 tabular-nums">{Math.round(minTemp)}°C</span>
-              <span className="text-[10px] text-zinc-400 mt-0.5">Spadek: ~{lowHour}</span>
-            </div>
-          </div>
-          <div className="p-2.5 rounded-2xl bg-white/[0.04] border border-white/5 flex items-center justify-between text-xs">
-            <span className="text-zinc-300">Amplituda termiczna</span>
-            <span className="font-bold text-white tabular-nums">{tempAmplitude}°C ({tempAmplitude > 10 ? 'Wyraźna różnica' : 'Umiarkowana'})</span>
-          </div>
-          <p className="text-xs text-zinc-300 bg-cyan-500/10 border border-cyan-400/20 rounded-2xl p-2.5 leading-relaxed">
-            {tempAmplitude >= 12
-              ? 'Duża dobowa rozpiętość temperatur. Poranek i wieczór odczuwalnie chłodniejsze od popołudniowego maksimum.'
-              : 'Wyrównany przebieg temperatur w ciągu doby, bez gwałtownych skoków termicznych.'}
-          </p>
         </div>
       );
     } else if (type === 'visibility') {
@@ -320,30 +236,6 @@ function DetailsGridComponent({ hourlyData, dailyData, currentIdx, dailyIdx }: D
           </p>
         </div>
       );
-    } else if (type === 'moon') {
-      headerIcon = <Moon size={16} className="text-indigo-400" />;
-      title = 'Faza Księżyca i Cykl';
-      badge = `${moon.illumination}%`;
-      content = (
-        <div className="flex flex-col gap-2.5">
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="p-2.5 rounded-2xl bg-white/[0.04] border border-white/5 flex flex-col">
-              <span className="text-[10px] text-zinc-400 uppercase font-bold">Faza tarczy</span>
-              <span className="text-xs sm:text-sm font-bold text-white mt-0.5 flex items-center gap-1.5 leading-tight">
-                <span>{moonPhaseInfo.icon}</span>
-                <span>{moonPhaseInfo.label}</span>
-              </span>
-            </div>
-            <div className="p-2.5 rounded-2xl bg-white/[0.04] border border-white/5 flex flex-col">
-              <span className="text-[10px] text-zinc-400 uppercase font-bold">Oświetlenie</span>
-              <span className="text-sm font-bold text-indigo-300 mt-0.5 tabular-nums">{moon.illumination}% tarczy</span>
-            </div>
-          </div>
-          <p className="text-xs text-zinc-300 bg-indigo-500/10 border border-indigo-400/20 rounded-2xl p-2.5 leading-relaxed">
-            Księżyc w fazie &bdquo;{moon.name}&rdquo;. Pełny cykl synodyczny trwa 29.5 dnia, a aktualna widoczność sprzyja nocnym obserwacjom nieba.
-          </p>
-        </div>
-      );
     }
 
     return (
@@ -390,393 +282,95 @@ function DetailsGridComponent({ hourlyData, dailyData, currentIdx, dailyIdx }: D
   };
 
   return (
-    <div className="flex flex-col gap-2.5 glass-isolate">
-      <div className="flex items-center justify-between text-zinc-400 px-1">
-        <div className="flex items-center gap-1.5">
-          <Compass className="w-3.5 h-3.5 text-blue-400" />
-          <span className="text-[10px] uppercase tracking-wider font-bold">Wskaźniki pogodowe</span>
+    <div className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between text-zinc-400 px-1">
+          <div className="flex items-center gap-1.5">
+            <Compass className="w-3.5 h-3.5 text-blue-400" />
+            <span className="text-[10px] uppercase tracking-wider font-bold">Wskaźniki pogodowe</span>
+          </div>
+          <span className="text-[10px] text-zinc-500 font-medium">Dotknij kafelek</span>
         </div>
-        <span className="text-[10px] text-zinc-500 font-medium">Dotknij kafelek po detale</span>
-      </div>
 
       <div className="grid grid-cols-2 gap-2.5">
-        {/* ROW 1 - Card 1: Wschód i Zachód Słońca */}
+        {/* ROW 1 - Card 1: Słońce & Paraboliczny Łuk lub Faza Księżyca */}
         <div
           onClick={() => toggleMetric('sun')}
-          className={`relative overflow-hidden bg-gradient-to-b from-zinc-900/70 via-zinc-900/50 to-zinc-950/80 backdrop-blur-2xl border rounded-3xl p-3.5 flex flex-col justify-between shadow-lg active:scale-[0.98] transition-all cursor-pointer glass-isolate ${
-            selectedMetric === 'sun'
-              ? 'border-amber-400/60 ring-1 ring-amber-400/40 bg-zinc-900/80'
-              : 'border-white/10 hover:border-white/20'
+          className={`relative overflow-hidden bg-zinc-900/50 backdrop-blur-2xl border rounded-2xl p-3.5 flex flex-col justify-between shadow-lg active:scale-[0.98] transition-all cursor-pointer ${
+            selectedMetric === 'sun' ? 'border-amber-400/60 ring-1 ring-amber-400/40 bg-zinc-900/70' : 'border-white/10 hover:border-white/20'
           }`}
         >
-          {/* Specular top light rim */}
-          <div className="absolute top-0 inset-x-3 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
-          {/* Ambient solar glow - pure radial gradient */}
-          <div
-            className="absolute -top-6 -left-6 w-20 h-20 rounded-full pointer-events-none"
-            style={{ background: 'radial-gradient(circle, rgba(245, 158, 11, 0.2) 0%, transparent 70%)' }}
-          />
-
-          {/* Header */}
-          <div className="flex items-center justify-between mb-1.5 relative z-10">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-xl bg-amber-500/15 border border-amber-400/25 flex items-center justify-center text-amber-400 shrink-0 shadow-[0_0_10px_rgba(251,191,36,0.2)]">
-                <Sun className="w-3.5 h-3.5" />
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-lg bg-amber-400/15 flex items-center justify-center text-amber-400 shrink-0">
+                {sunArc.isDay ? <Sunrise className="w-3 h-3" /> : <Moon className="w-3 h-3 text-indigo-400" />}
               </div>
-              <span className="text-[10px] uppercase tracking-wider font-extrabold text-zinc-300 truncate">
-                Słońce
+              <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 truncate">
+                {sunArc.isDay ? 'Słońce' : 'Księżyc'}
               </span>
             </div>
-            <div className="flex items-center gap-1">
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400/10 border border-amber-400/20 text-amber-300">
-                {sunArc.solarPhase}
-              </span>
-              <ChevronRight
-                size={13}
-                className={`transition-transform duration-200 ${
-                  selectedMetric === 'sun' ? 'rotate-90 text-amber-400' : 'text-zinc-500'
-                }`}
-              />
-            </div>
+            <ChevronRight size={12} className={`transition-transform duration-200 ${selectedMetric === 'sun' ? 'rotate-90 text-amber-400' : 'text-zinc-500'}`} />
           </div>
 
-          {/* Solar Arc SVG */}
-          <div className="w-full h-8 my-0.5 relative">
-            <svg viewBox="0 0 130 36" className="w-full h-full overflow-visible">
-              <defs>
-                <linearGradient id="sunArcGrad" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.3" />
-                  <stop offset="50%" stopColor="#f59e0b" stopOpacity="0.85" />
-                  <stop offset="100%" stopColor="#f97316" stopOpacity="0.3" />
-                </linearGradient>
-              </defs>
-              {/* Horizon line */}
-              <line x1="5" y1="32" x2="125" y2="32" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
-              {/* Sun trajectory arc */}
-              <path d="M 12 32 Q 65 5 118 32" fill="none" stroke="url(#sunArcGrad)" strokeWidth="1.5" strokeDasharray="3 2" />
-              {/* Sun orb */}
-              {sunArc.isDay && (
-                <g transform={`translate(${sunX}, ${sunY})`}>
-                  <circle r="7" fill="#fbbf24" opacity="0.25" className="animate-pulse" />
-                  <circle r="3.5" fill="#fef08a" className="drop-shadow-[0_0_8px_rgba(251,191,36,0.9)]" />
-                </g>
-              )}
-            </svg>
-          </div>
+          {sunArc.isDay ? (
+            <div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-lg font-bold text-white tabular-nums tracking-tight">
+                  {formatTime(sunrise)}
+                </span>
+                <span className="text-[10px] text-amber-300 font-medium">
+                  {sunArc.countdown}
+                </span>
+              </div>
 
-          {/* Twin Solar Badges: Wschód vs Zachód */}
-          <div className="grid grid-cols-2 gap-1 my-0.5">
-            <div className="flex flex-col">
-              <span className="text-[9px] font-bold text-amber-400 flex items-center gap-0.5">
-                <ArrowUp size={9} /> Wschód
-              </span>
-              <span className="text-xs font-black text-white tabular-nums tracking-tight">
-                {formatTime(sunrise)}
-              </span>
-            </div>
-            <div className="flex flex-col text-right">
-              <span className="text-[9px] font-bold text-orange-400 flex items-center justify-end gap-0.5">
-                <ArrowDown size={9} /> Zachód
-              </span>
-              <span className="text-xs font-black text-white tabular-nums tracking-tight">
-                {formatTime(sunset)}
-              </span>
-            </div>
-          </div>
+              {/* Sun Arc SVG */}
+              <div className="w-full h-8 mt-0.5 relative">
+                <svg viewBox="0 0 120 34" className="w-full h-full overflow-visible">
+                  <line x1="0" y1="30" x2="120" y2="30" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                  <path d="M 10 30 Q 60 4 110 30" fill="none" stroke="rgba(251,191,36,0.3)" strokeWidth="1.5" strokeDasharray="3 3" />
+                  <circle cx={sunX} cy={sunY} r="4" fill="#fbbf24" className="drop-shadow-[0_0_8px_rgba(251,191,36,0.9)]" />
+                </svg>
+              </div>
 
-          {/* Footer: Daylight Length */}
-          <div className="flex items-center justify-between text-[9px] text-zinc-400 mt-1.5 pt-1 border-t border-white/5">
-            <span>Długość dnia:</span>
-            <span className="font-bold text-zinc-200 tabular-nums">{sunArc.daylightStr}</span>
-          </div>
+              {/* Moon phase subtitle */}
+              <div className="flex items-center justify-between text-[10px] text-zinc-400 mt-1 border-t border-white/5 pt-1">
+                <span>Zachód: {formatTime(sunset)}</span>
+                <span className="text-indigo-300 font-medium flex items-center gap-1">
+                  <span>{moonPhaseInfo.icon}</span>
+                  <span>{moonPhaseInfo.label}</span>
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div className="text-base font-bold text-white truncate">{moon.name}</div>
+              <div className="text-xs text-indigo-300 font-semibold mt-0.5">{moon.illumination}% tarczy ({moonPhaseInfo.icon})</div>
+              <div className="w-full h-1 bg-white/10 rounded-full mt-2.5 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full" style={{ width: `${moon.illumination}%` }} />
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* ROW 1 - Card 2: Zakres Temperatur (Temp Min / Maks) */}
-        <div
-          onClick={() => toggleMetric('temp_range')}
-          className={`relative overflow-hidden bg-gradient-to-b from-zinc-900/70 via-zinc-900/50 to-zinc-950/80 backdrop-blur-2xl border rounded-3xl p-3.5 flex flex-col justify-between shadow-lg active:scale-[0.98] transition-all cursor-pointer glass-isolate ${
-            selectedMetric === 'temp_range'
-              ? 'border-cyan-400/60 ring-1 ring-cyan-400/40 bg-zinc-900/80'
-              : 'border-white/10 hover:border-white/20'
-          }`}
-        >
-          {/* Specular top light rim */}
-          <div className="absolute top-0 inset-x-3 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
-          {/* Ambient cold/warm glow - pure radial gradient */}
-          <div
-            className="absolute -top-6 -left-6 w-20 h-20 rounded-full pointer-events-none"
-            style={{ background: 'radial-gradient(circle, rgba(6, 182, 212, 0.2) 0%, transparent 70%)' }}
-          />
-
-          {/* Header */}
-          <div className="flex items-center justify-between mb-1.5 relative z-10">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-xl bg-cyan-500/15 border border-cyan-400/25 flex items-center justify-center text-cyan-400 shrink-0 shadow-[0_0_10px_rgba(34,211,238,0.2)]">
-                <Thermometer className="w-3.5 h-3.5" />
-              </div>
-              <span className="text-[10px] uppercase tracking-wider font-extrabold text-zinc-300">
-                Min / Maks
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-cyan-400/10 border border-cyan-400/20 text-cyan-300">
-                Δ {tempAmplitude}°
-              </span>
-              <ChevronRight
-                size={13}
-                className={`transition-transform duration-200 ${
-                  selectedMetric === 'temp_range' ? 'rotate-90 text-cyan-400' : 'text-zinc-500'
-                }`}
-              />
-            </div>
-          </div>
-
-          {/* Twin Temperature Readouts (Maks vs Min) */}
-          <div className="grid grid-cols-2 gap-1 my-1">
-            <div className="flex flex-col">
-              <span className="text-[9px] font-bold text-amber-400 flex items-center gap-0.5">
-                <ArrowUp size={9} /> Maks.
-              </span>
-              <span className="text-xl font-black text-amber-300 tabular-nums tracking-tight">
-                {Math.round(maxTemp)}°
-              </span>
-              <span className="text-[9px] text-zinc-400 leading-none mt-0.5 truncate">
-                ~{peakHour}
-              </span>
-            </div>
-            <div className="flex flex-col text-right">
-              <span className="text-[9px] font-bold text-cyan-400 flex items-center justify-end gap-0.5">
-                <ArrowDown size={9} /> Min.
-              </span>
-              <span className="text-xl font-black text-cyan-300 tabular-nums tracking-tight">
-                {Math.round(minTemp)}°
-              </span>
-              <span className="text-[9px] text-zinc-400 leading-none mt-0.5 truncate">
-                ~{lowHour}
-              </span>
-            </div>
-          </div>
-
-          {/* Thermal Spectrum Bar */}
-          <div className="w-full h-1.5 bg-white/10 rounded-full relative overflow-hidden mt-1 shadow-inner">
-            <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 via-emerald-400 to-amber-400 opacity-80" />
-            <div
-              className="absolute top-0 bottom-0 w-2 bg-white rounded-full shadow-[0_0_6px_#ffffff]"
-              style={{ left: `calc(${currentTempPos}% - 4px)` }}
-            />
-          </div>
-
-          {/* Footer: Current temp label */}
-          <div className="flex items-center justify-between text-[9px] text-zinc-400 mt-1.5 pt-1 border-t border-white/5">
-            <span>Bieżąca:</span>
-            <span className="font-bold text-zinc-200 tabular-nums">{Math.round(temp)}°C</span>
-          </div>
-        </div>
-
-        {/* Translucent Bubble for Row 1 */}
-        {(selectedMetric === 'sun' || selectedMetric === 'temp_range') &&
-          renderBubble(selectedMetric, selectedMetric === 'sun')}
-
-        {/* ROW 2 - Card 3: Indeks UV */}
-        <div
-          onClick={() => toggleMetric('uv')}
-          className={`relative overflow-hidden bg-gradient-to-b from-zinc-900/70 via-zinc-900/50 to-zinc-950/80 backdrop-blur-2xl border rounded-3xl p-3.5 flex flex-col justify-between shadow-lg active:scale-[0.98] transition-all cursor-pointer glass-isolate ${
-            selectedMetric === 'uv'
-              ? 'border-yellow-400/60 ring-1 ring-yellow-400/40 bg-zinc-900/80'
-              : 'border-white/10 hover:border-white/20'
-          }`}
-        >
-          {/* Specular top light rim */}
-          <div className="absolute top-0 inset-x-3 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
-          {/* Ambient yellow glow - pure radial gradient */}
-          <div
-            className="absolute -top-6 -left-6 w-20 h-20 rounded-full pointer-events-none"
-            style={{ background: 'radial-gradient(circle, rgba(234, 179, 8, 0.2) 0%, transparent 70%)' }}
-          />
-
-          {/* Header */}
-          <div className="flex items-center justify-between mb-1.5 relative z-10">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-xl bg-yellow-400/15 border border-yellow-400/25 flex items-center justify-center text-yellow-400 shrink-0 shadow-[0_0_10px_rgba(250,204,21,0.2)]">
-                <Sun className="w-3.5 h-3.5" />
-              </div>
-              <span className="text-[10px] uppercase tracking-wider font-extrabold text-zinc-300 truncate">
-                Indeks UV
-              </span>
-            </div>
-            <ChevronRight
-              size={13}
-              className={`transition-transform duration-200 ${
-                selectedMetric === 'uv' ? 'rotate-90 text-yellow-400' : 'text-zinc-500'
-              }`}
-            />
-          </div>
-
-          <div className="my-0.5">
-            <div className="text-xl font-black text-white tabular-nums tracking-tight">
-              {Math.round(uvIndex)} <span className="text-xs font-normal text-zinc-400">/ 11</span>
-            </div>
-            <div className="text-[11px] text-yellow-300 font-semibold mt-0.5 truncate">
-              {uvDescription(uvIndex)}
-            </div>
-          </div>
-
-          <div className="w-full h-1.5 bg-white/10 rounded-full mt-2 overflow-hidden shadow-inner">
-            <div
-              className="h-full bg-gradient-to-r from-emerald-400 via-amber-400 to-purple-500 rounded-full"
-              style={{ width: `${Math.min(100, Math.round((uvIndex / 11) * 100))}%` }}
-            />
-          </div>
-        </div>
-
-        {/* ROW 2 - Card 4: Ciśnienie */}
-        <div
-          onClick={() => toggleMetric('pressure')}
-          className={`relative overflow-hidden bg-gradient-to-b from-zinc-900/70 via-zinc-900/50 to-zinc-950/80 backdrop-blur-2xl border rounded-3xl p-3.5 flex flex-col justify-between shadow-lg active:scale-[0.98] transition-all cursor-pointer glass-isolate ${
-            selectedMetric === 'pressure'
-              ? 'border-purple-400/60 ring-1 ring-purple-400/40 bg-zinc-900/80'
-              : 'border-white/10 hover:border-white/20'
-          }`}
-        >
-          {/* Specular top light rim */}
-          <div className="absolute top-0 inset-x-3 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
-          {/* Ambient purple glow - pure radial gradient */}
-          <div
-            className="absolute -top-6 -left-6 w-20 h-20 rounded-full pointer-events-none"
-            style={{ background: 'radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, transparent 70%)' }}
-          />
-
-          {/* Header */}
-          <div className="flex items-center justify-between mb-1.5 relative z-10">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-xl bg-purple-400/15 border border-purple-400/25 flex items-center justify-center text-purple-400 shrink-0 shadow-[0_0_10px_rgba(192,132,252,0.2)]">
-                <Gauge className="w-3.5 h-3.5" />
-              </div>
-              <span className="text-[10px] uppercase tracking-wider font-extrabold text-zinc-300 truncate">
-                Ciśnienie
-              </span>
-            </div>
-            <ChevronRight
-              size={13}
-              className={`transition-transform duration-200 ${
-                selectedMetric === 'pressure' ? 'rotate-90 text-purple-400' : 'text-zinc-500'
-              }`}
-            />
-          </div>
-
-          <div className="my-0.5">
-            <div className="text-xl font-black text-white tabular-nums tracking-tight">
-              {pressureText}
-            </div>
-            <div className="text-[11px] text-purple-300 font-semibold mt-0.5 truncate">
-              {pressureDesc}
-            </div>
-          </div>
-
-          <div className="w-full h-1.5 bg-white/10 rounded-full mt-2 overflow-hidden shadow-inner">
-            <div
-              className="h-full bg-gradient-to-r from-purple-400 to-indigo-500 rounded-full"
-              style={{
-                width: `${Math.min(100, Math.max(10, (((pressure || 1013) - 970) / (1040 - 970)) * 100))}%`,
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Translucent Bubble for Row 2 */}
-        {(selectedMetric === 'uv' || selectedMetric === 'pressure') &&
-          renderBubble(selectedMetric, selectedMetric === 'uv')}
-
-        {/* ROW 3 - Card 5: Wilgotność */}
-        <div
-          onClick={() => toggleMetric('humidity')}
-          className={`relative overflow-hidden bg-gradient-to-b from-zinc-900/70 via-zinc-900/50 to-zinc-950/80 backdrop-blur-2xl border rounded-3xl p-3.5 flex flex-col justify-between shadow-lg active:scale-[0.98] transition-all cursor-pointer glass-isolate ${
-            selectedMetric === 'humidity'
-              ? 'border-cyan-400/60 ring-1 ring-cyan-400/40 bg-zinc-900/80'
-              : 'border-white/10 hover:border-white/20'
-          }`}
-        >
-          {/* Specular top light rim */}
-          <div className="absolute top-0 inset-x-3 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
-          {/* Ambient cyan glow - pure radial gradient */}
-          <div
-            className="absolute -top-6 -left-6 w-20 h-20 rounded-full pointer-events-none"
-            style={{ background: 'radial-gradient(circle, rgba(6, 182, 212, 0.2) 0%, transparent 70%)' }}
-          />
-
-          {/* Header */}
-          <div className="flex items-center justify-between mb-1.5 relative z-10">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-xl bg-cyan-400/15 border border-cyan-400/25 flex items-center justify-center text-cyan-400 shrink-0 shadow-[0_0_10px_rgba(34,211,238,0.2)]">
-                <Droplets className="w-3.5 h-3.5" />
-              </div>
-              <span className="text-[10px] uppercase tracking-wider font-extrabold text-zinc-300 truncate">
-                Wilgotność
-              </span>
-            </div>
-            <ChevronRight
-              size={13}
-              className={`transition-transform duration-200 ${
-                selectedMetric === 'humidity' ? 'rotate-90 text-cyan-400' : 'text-zinc-500'
-              }`}
-            />
-          </div>
-
-          <div className="my-0.5">
-            <div className="text-xl font-black text-white tabular-nums tracking-tight">
-              {Math.round(humidity)}%
-            </div>
-            <div className="text-[11px] text-zinc-400 mt-0.5 truncate">
-              Punkt rosy: {dewPoint}°
-            </div>
-          </div>
-
-          <div className="w-full h-1.5 bg-white/10 rounded-full mt-2 overflow-hidden shadow-inner">
-            <div
-              className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"
-              style={{ width: `${humidity}%` }}
-            />
-          </div>
-        </div>
-
-        {/* ROW 3 - Card 6: Widoczność */}
+        {/* ROW 1 - Card 2: Widoczność */}
         <div
           onClick={() => toggleMetric('visibility')}
-          className={`relative overflow-hidden bg-gradient-to-b from-zinc-900/70 via-zinc-900/50 to-zinc-950/80 backdrop-blur-2xl border rounded-3xl p-3.5 flex flex-col justify-between shadow-lg active:scale-[0.98] transition-all cursor-pointer glass-isolate ${
-            selectedMetric === 'visibility'
-              ? 'border-emerald-400/60 ring-1 ring-emerald-400/40 bg-zinc-900/80'
-              : 'border-white/10 hover:border-white/20'
+          className={`relative overflow-hidden bg-zinc-900/50 backdrop-blur-2xl border rounded-2xl p-3.5 flex flex-col justify-between shadow-lg active:scale-[0.98] transition-all cursor-pointer ${
+            selectedMetric === 'visibility' ? 'border-emerald-400/60 ring-1 ring-emerald-400/40 bg-zinc-900/70' : 'border-white/10 hover:border-white/20'
           }`}
         >
-          {/* Specular top light rim */}
-          <div className="absolute top-0 inset-x-3 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
-          {/* Ambient emerald glow - pure radial gradient */}
-          <div
-            className="absolute -top-6 -left-6 w-20 h-20 rounded-full pointer-events-none"
-            style={{ background: 'radial-gradient(circle, rgba(16, 185, 129, 0.2) 0%, transparent 70%)' }}
-          />
-
-          {/* Header */}
-          <div className="flex items-center justify-between mb-1.5 relative z-10">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-xl bg-emerald-400/15 border border-emerald-400/25 flex items-center justify-center text-emerald-400 shrink-0 shadow-[0_0_10px_rgba(52,211,153,0.2)]">
-                <Eye className="w-3.5 h-3.5" />
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-lg bg-emerald-400/15 flex items-center justify-center text-emerald-400 shrink-0">
+                <Eye className="w-3 h-3" />
               </div>
-              <span className="text-[10px] uppercase tracking-wider font-extrabold text-zinc-300 truncate">
-                Widoczność
-              </span>
+              <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 truncate">Widoczność</span>
             </div>
-            <ChevronRight
-              size={13}
-              className={`transition-transform duration-200 ${
-                selectedMetric === 'visibility' ? 'rotate-90 text-emerald-400' : 'text-zinc-500'
-              }`}
-            />
+            <ChevronRight size={12} className={`transition-transform duration-200 ${selectedMetric === 'visibility' ? 'rotate-90 text-emerald-400' : 'text-zinc-500'}`} />
           </div>
 
           <div className="my-0.5">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-xl font-black text-white tabular-nums tracking-tight">
+              <span className="text-xl font-bold text-white tabular-nums tracking-tight">
                 {visibilityInfo.km}
               </span>
               <span className="text-xs font-normal text-zinc-400">km</span>
@@ -786,7 +380,7 @@ function DetailsGridComponent({ hourlyData, dailyData, currentIdx, dailyIdx }: D
             </div>
           </div>
 
-          <div className="w-full h-1.5 bg-white/10 rounded-full mt-2 overflow-hidden shadow-inner">
+          <div className="w-full h-1 bg-white/10 rounded-full mt-2 overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-emerald-400 to-teal-400 rounded-full"
               style={{ width: `${Math.min(100, Math.max(15, (visibilityMeters / 10000) * 100))}%` }}
@@ -794,47 +388,28 @@ function DetailsGridComponent({ hourlyData, dailyData, currentIdx, dailyIdx }: D
           </div>
         </div>
 
-        {/* Translucent Bubble for Row 3 */}
-        {(selectedMetric === 'humidity' || selectedMetric === 'visibility') &&
-          renderBubble(selectedMetric, selectedMetric === 'humidity')}
+        {/* Translucent Bubble for Row 1 */}
+        {(selectedMetric === 'sun' || selectedMetric === 'visibility') && renderBubble(selectedMetric, selectedMetric === 'sun')}
 
-        {/* ROW 4 - Card 7: Zachmurzenie */}
+        {/* ROW 2 - Card 3: Zachmurzenie */}
         <div
           onClick={() => toggleMetric('cloudiness')}
-          className={`relative overflow-hidden bg-gradient-to-b from-zinc-900/70 via-zinc-900/50 to-zinc-950/80 backdrop-blur-2xl border rounded-3xl p-3.5 flex flex-col justify-between shadow-lg active:scale-[0.98] transition-all cursor-pointer glass-isolate ${
-            selectedMetric === 'cloudiness'
-              ? 'border-sky-400/60 ring-1 ring-sky-400/40 bg-zinc-900/80'
-              : 'border-white/10 hover:border-white/20'
+          className={`relative overflow-hidden bg-zinc-900/50 backdrop-blur-2xl border rounded-2xl p-3.5 flex flex-col justify-between shadow-lg active:scale-[0.98] transition-all cursor-pointer ${
+            selectedMetric === 'cloudiness' ? 'border-sky-400/60 ring-1 ring-sky-400/40 bg-zinc-900/70' : 'border-white/10 hover:border-white/20'
           }`}
         >
-          {/* Specular top light rim */}
-          <div className="absolute top-0 inset-x-3 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
-          {/* Ambient sky glow - pure radial gradient */}
-          <div
-            className="absolute -top-6 -left-6 w-20 h-20 rounded-full pointer-events-none"
-            style={{ background: 'radial-gradient(circle, rgba(14, 165, 233, 0.2) 0%, transparent 70%)' }}
-          />
-
-          {/* Header */}
-          <div className="flex items-center justify-between mb-1.5 relative z-10">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-xl bg-sky-400/15 border border-sky-400/25 flex items-center justify-center text-sky-400 shrink-0 shadow-[0_0_10px_rgba(56,189,248,0.2)]">
-                <Cloud className="w-3.5 h-3.5" />
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-lg bg-sky-400/15 flex items-center justify-center text-sky-400 shrink-0">
+                <Cloud className="w-3 h-3" />
               </div>
-              <span className="text-[10px] uppercase tracking-wider font-extrabold text-zinc-300 truncate">
-                Zachmurzenie
-              </span>
+              <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 truncate">Zachmurzenie</span>
             </div>
-            <ChevronRight
-              size={13}
-              className={`transition-transform duration-200 ${
-                selectedMetric === 'cloudiness' ? 'rotate-90 text-sky-400' : 'text-zinc-500'
-              }`}
-            />
+            <ChevronRight size={12} className={`transition-transform duration-200 ${selectedMetric === 'cloudiness' ? 'rotate-90 text-sky-400' : 'text-zinc-500'}`} />
           </div>
 
           <div className="my-0.5">
-            <div className="text-xl font-black text-white tabular-nums tracking-tight">
+            <div className="text-xl font-bold text-white tabular-nums tracking-tight">
               {cloudCoverInfo.percent}%
             </div>
             <div className="text-[11px] text-zinc-300 font-medium mt-0.5 truncate">
@@ -842,7 +417,7 @@ function DetailsGridComponent({ hourlyData, dailyData, currentIdx, dailyIdx }: D
             </div>
           </div>
 
-          <div className="w-full h-1.5 bg-white/10 rounded-full mt-2 overflow-hidden shadow-inner">
+          <div className="w-full h-1 bg-white/10 rounded-full mt-2 overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-sky-400 to-indigo-400 rounded-full"
               style={{ width: `${Math.min(100, Math.max(10, cloudCoverInfo.percent))}%` }}
@@ -850,67 +425,113 @@ function DetailsGridComponent({ hourlyData, dailyData, currentIdx, dailyIdx }: D
           </div>
         </div>
 
-        {/* ROW 4 - Card 8: Faza Księżyca */}
+        {/* ROW 2 - Card 4: Wilgotność */}
         <div
-          onClick={() => toggleMetric('moon')}
-          className={`relative overflow-hidden bg-gradient-to-b from-zinc-900/70 via-zinc-900/50 to-zinc-950/80 backdrop-blur-2xl border rounded-3xl p-3.5 flex flex-col justify-between shadow-lg active:scale-[0.98] transition-all cursor-pointer glass-isolate ${
-            selectedMetric === 'moon'
-              ? 'border-indigo-400/60 ring-1 ring-indigo-400/40 bg-zinc-900/80'
-              : 'border-white/10 hover:border-white/20'
+          onClick={() => toggleMetric('humidity')}
+          className={`relative overflow-hidden bg-zinc-900/50 backdrop-blur-2xl border rounded-2xl p-3.5 flex flex-col justify-between shadow-lg active:scale-[0.98] transition-all cursor-pointer ${
+            selectedMetric === 'humidity' ? 'border-cyan-400/60 ring-1 ring-cyan-400/40 bg-zinc-900/70' : 'border-white/10 hover:border-white/20'
           }`}
         >
-          {/* Specular top light rim */}
-          <div className="absolute top-0 inset-x-3 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
-          {/* Ambient lunar glow - pure radial gradient */}
-          <div
-            className="absolute -top-6 -left-6 w-20 h-20 rounded-full pointer-events-none"
-            style={{ background: 'radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, transparent 70%)' }}
-          />
-
-          {/* Header */}
-          <div className="flex items-center justify-between mb-1.5 relative z-10">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-xl bg-indigo-500/15 border border-indigo-400/25 flex items-center justify-center text-indigo-400 shrink-0 shadow-[0_0_12px_rgba(129,140,248,0.2)]">
-                <Moon className="w-3.5 h-3.5" />
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-lg bg-cyan-400/15 flex items-center justify-center text-cyan-400 shrink-0">
+                <Droplets className="w-3 h-3" />
               </div>
-              <span className="text-[10px] uppercase tracking-wider font-extrabold text-zinc-300 truncate">
-                Księżyc
-              </span>
+              <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 truncate">Wilgotność</span>
             </div>
-            <div className="flex items-center gap-1">
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-400/10 border border-indigo-400/20 text-indigo-300">
-                {moon.illumination}%
-              </span>
-              <ChevronRight
-                size={13}
-                className={`transition-transform duration-200 ${
-                  selectedMetric === 'moon' ? 'rotate-90 text-indigo-400' : 'text-zinc-500'
-                }`}
-              />
-            </div>
+            <ChevronRight size={12} className={`transition-transform duration-200 ${selectedMetric === 'humidity' ? 'rotate-90 text-cyan-400' : 'text-zinc-500'}`} />
           </div>
 
           <div className="my-0.5">
-            <div className="text-sm font-extrabold text-white flex items-center gap-1.5 leading-tight">
-              <span className="shrink-0">{moonPhaseInfo.icon}</span>
-              <span className="truncate">{moonPhaseInfo.label}</span>
+            <div className="text-xl font-bold text-white tabular-nums tracking-tight">
+              {Math.round(humidity)}%
             </div>
-            <div className="text-[11px] text-indigo-300 font-semibold mt-0.5 truncate">
-              {moon.illumination}% tarczy
+            <div className="text-[11px] text-zinc-400 mt-0.5 truncate">
+              Punkt rosy: {dewPoint}°
             </div>
           </div>
 
-          <div className="w-full h-1.5 bg-white/10 rounded-full mt-2 overflow-hidden shadow-inner">
+          <div className="w-full h-1 bg-white/10 rounded-full mt-2 overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full"
-              style={{ width: `${moon.illumination}%` }}
+              className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"
+              style={{ width: `${humidity}%` }}
             />
           </div>
         </div>
 
-        {/* Translucent Bubble for Row 4 */}
-        {(selectedMetric === 'cloudiness' || selectedMetric === 'moon') &&
-          renderBubble(selectedMetric, selectedMetric === 'cloudiness')}
+        {/* Translucent Bubble for Row 2 */}
+        {(selectedMetric === 'cloudiness' || selectedMetric === 'humidity') && renderBubble(selectedMetric, selectedMetric === 'cloudiness')}
+
+        {/* ROW 3 - Card 5: Indeks UV */}
+        <div
+          onClick={() => toggleMetric('uv')}
+          className={`relative overflow-hidden bg-zinc-900/50 backdrop-blur-2xl border rounded-2xl p-3.5 flex flex-col justify-between shadow-lg active:scale-[0.98] transition-all cursor-pointer ${
+            selectedMetric === 'uv' ? 'border-yellow-400/60 ring-1 ring-yellow-400/40 bg-zinc-900/70' : 'border-white/10 hover:border-white/20'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-lg bg-yellow-400/15 flex items-center justify-center text-yellow-400 shrink-0">
+                <Sun className="w-3 h-3" />
+              </div>
+              <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 truncate">Indeks UV</span>
+            </div>
+            <ChevronRight size={12} className={`transition-transform duration-200 ${selectedMetric === 'uv' ? 'rotate-90 text-yellow-400' : 'text-zinc-500'}`} />
+          </div>
+
+          <div className="my-0.5">
+            <div className="text-xl font-bold text-white tabular-nums tracking-tight">
+              {Math.round(uvIndex)} <span className="text-xs font-normal text-zinc-400">/ 11</span>
+            </div>
+            <div className="text-[11px] text-yellow-300 font-semibold mt-0.5 truncate">
+              {uvDescription(uvIndex)}
+            </div>
+          </div>
+
+          <div className="w-full h-1 bg-white/10 rounded-full mt-2 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-emerald-400 via-amber-400 to-purple-500 rounded-full"
+              style={{ width: `${Math.min(100, Math.round((uvIndex / 11) * 100))}%` }}
+            />
+          </div>
+        </div>
+
+        {/* ROW 3 - Card 6: Ciśnienie */}
+        <div
+          onClick={() => toggleMetric('pressure')}
+          className={`relative overflow-hidden bg-zinc-900/50 backdrop-blur-2xl border rounded-2xl p-3.5 flex flex-col justify-between shadow-lg active:scale-[0.98] transition-all cursor-pointer ${
+            selectedMetric === 'pressure' ? 'border-purple-400/60 ring-1 ring-purple-400/40 bg-zinc-900/70' : 'border-white/10 hover:border-white/20'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-5 rounded-lg bg-purple-400/15 flex items-center justify-center text-purple-400 shrink-0">
+                <Gauge className="w-3 h-3" />
+              </div>
+              <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 truncate">Ciśnienie</span>
+            </div>
+            <ChevronRight size={12} className={`transition-transform duration-200 ${selectedMetric === 'pressure' ? 'rotate-90 text-purple-400' : 'text-zinc-500'}`} />
+          </div>
+
+          <div className="my-0.5">
+            <div className="text-xl font-bold text-white tabular-nums tracking-tight">
+              {pressureText}
+            </div>
+            <div className="text-[11px] text-purple-300 font-semibold mt-0.5 truncate">
+              {pressureDesc}
+            </div>
+          </div>
+
+          <div className="w-full h-1 bg-white/10 rounded-full mt-2 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-purple-400 to-indigo-500 rounded-full"
+              style={{ width: `${Math.min(100, Math.max(10, (((pressure || 1013) - 970) / (1040 - 970)) * 100))}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Translucent Bubble for Row 3 */}
+        {(selectedMetric === 'uv' || selectedMetric === 'pressure') && renderBubble(selectedMetric, selectedMetric === 'uv')}
       </div>
     </div>
   );

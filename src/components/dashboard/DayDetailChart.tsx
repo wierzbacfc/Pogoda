@@ -851,6 +851,27 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
                 preserveAspectRatio="none"
               >
                 <defs>
+                  <style>
+                    {`
+                      @keyframes drawPath {
+                        from { stroke-dasharray: 2000; stroke-dashoffset: 2000; }
+                        to { stroke-dasharray: 2000; stroke-dashoffset: 0; }
+                      }
+                      .animate-draw {
+                        animation: drawPath 1s cubic-bezier(0.2, 1, 0.2, 1) forwards;
+                      }
+                      @keyframes fadeInArea {
+                        from { opacity: 0; transform: translateY(4px); }
+                        to { opacity: 1; transform: translateY(0); }
+                      }
+                      .animate-fade-area {
+                        animation: fadeInArea 0.8s ease-out forwards;
+                        animation-delay: 0.2s;
+                        opacity: 0;
+                        transform-origin: bottom;
+                      }
+                    `}
+                  </style>
                   {/* Temperature Gradient */}
                   <linearGradient id={`tempLineGrad-${dateStr}`} x1="0%" y1="0%" x2="100%" y2="0%">
                     {hours.map((h, i) => {
@@ -918,44 +939,8 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
                   100%
                 </text>
 
-                {/* Guide line for Current Hour (Teraz) */}
-                {isToday && currentIdx >= 0 && (() => {
-                  const curHourItem = hours.find(h => h.idx === currentIdx);
-                  if (!curHourItem) return null;
-                  const curX = hours.indexOf(curHourItem) * colWidth + colWidth / 2;
-                  return (
-                    <line
-                      x1={curX}
-                      y1={2}
-                      x2={curX}
-                      y2={tempSvgHeight}
-                      stroke="#60a5fa"
-                      strokeWidth="1"
-                      strokeDasharray="2 2"
-                      opacity="0.5"
-                    />
-                  );
-                })()}
-
-                {/* Guide line & Active Touch Scrubber for Touched Hour */}
-                {activeHourIdx !== null && (() => {
-                  const scrubX = activeHourIdx * colWidth + colWidth / 2;
-                  return (
-                    <line
-                      x1={scrubX}
-                      y1={0}
-                      x2={scrubX}
-                      y2={tempSvgHeight}
-                      stroke="#22d3ee"
-                      strokeWidth="1.6"
-                      strokeDasharray="3 2"
-                      className="drop-shadow-[0_0_6px_rgba(34,211,238,0.9)]"
-                    />
-                  );
-                })()}
-
-                {/* 1. CLOUD CEILING LAYER (SCHODZI OD GÓRY W DÓŁ PROPORCJONALNIE DO %) */}
-                <path d={cloudCeilingAreaD} fill={`url(#cloudCeilingGrad-${dateStr})`} />
+                {/* 1. CLOUD CEILING LAYER (GÓRA) */}
+                <path d={cloudCeilingAreaD} fill={`url(#cloudCeilingGrad-${dateStr})`} className="animate-fade-area" style={{ transformOrigin: 'top' }} />
                 <path
                   d={cloudSplineD}
                   fill="none"
@@ -964,17 +949,18 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
                   strokeDasharray="2 2"
                   strokeLinecap="round"
                   opacity="0.45"
+                  className="animate-draw"
                 />
 
                 {/* 2. TEMPERATURE LAYER (KRZYWA TEMPERATURY HERO) */}
-                <path d={tempAreaD} fill={`url(#tempAreaGrad-${dateStr})`} />
+                <path d={tempAreaD} fill={`url(#tempAreaGrad-${dateStr})`} className="animate-fade-area" />
                 <path
                   d={tempSplineD}
                   fill="none"
                   stroke={`url(#tempLineGrad-${dateStr})`}
                   strokeWidth="2.4"
                   strokeLinecap="round"
-                  className="drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
+                  className="drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)] animate-draw"
                 />
 
                 {/* 3. TEMPERATURE NODES & DEGREE LABELS (FOR EVERY HOUR) */}
@@ -1052,10 +1038,10 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
           </div>
 
           {/* ================= 3. LOWER ZONE: OPADY [mm / %] + WIATR [km/h] ================= */}
-          <div className="rounded-xl bg-zinc-900/40 border border-white/5 p-1 flex flex-col gap-0.5">
+          <div className="rounded-xl bg-zinc-900/40 border border-white/5 py-1 flex flex-col gap-0.5">
             {/* Dynamic Width Rain Bars: Height = [mm], Width = [%] */}
             <div
-              className="grid items-end h-9.5 px-0.5"
+              className="grid items-end h-9.5"
               style={{ gridTemplateColumns: `repeat(${hours.length}, ${colWidth}px)` }}
             >
               {hours.map((h, idx) => {
@@ -1156,6 +1142,34 @@ export function DayDetailChart({ dateStr, isToday, currentIdx, hourlyData }: Day
             </div>
 
           </div>
+
+          {/* ================= 4. FULL-HEIGHT OVERLAYS (Guide Lines) ================= */}
+          <div className="absolute inset-0 pointer-events-none z-20">
+            {/* Guide line for Current Hour (Teraz) */}
+            {isToday && currentIdx >= 0 && (() => {
+              const curHourItem = hours.find((h) => h.idx === currentIdx);
+              if (!curHourItem) return null;
+              const curX = hours.indexOf(curHourItem) * colWidth + colWidth / 2;
+              return (
+                <div
+                  className="absolute top-6 bottom-0 w-px border-l border-blue-400 border-dashed opacity-50"
+                  style={{ left: `${curX}px` }}
+                />
+              );
+            })()}
+
+            {/* Guide line & Active Touch Scrubber for Touched Hour */}
+            {activeHourIdx !== null && (() => {
+              const scrubX = activeHourIdx * colWidth + colWidth / 2;
+              return (
+                <div
+                  className="absolute top-6 bottom-0 w-px border-l-[1.5px] border-cyan-400 border-dashed shadow-[0_0_6px_rgba(34,211,238,0.9)]"
+                  style={{ left: `${scrubX}px` }}
+                />
+              );
+            })()}
+          </div>
+
 
         </div>
       </div>
