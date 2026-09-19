@@ -96,10 +96,15 @@ export default function WeatherApp() {
   const isLandscape = useLandscape();
   const [hideLandscapeChart, setHideLandscapeChart] = useState(false);
   const [manualLandscapeOpen, setManualLandscapeOpen] = useState(false);
+  const prevIsLandscapeRef = useRef(isLandscape);
 
-  // When orientation changes (e.g. portrait <-> landscape), reset hide flag so tilting always activates it
+  // When rotating phone upright to portrait, automatically return to main screen
   useEffect(() => {
+    if (prevIsLandscapeRef.current && !isLandscape) {
+      setManualLandscapeOpen(false);
+    }
     setHideLandscapeChart(false);
+    prevIsLandscapeRef.current = isLandscape;
   }, [isLandscape]);
 
   const showLandscapeChart = manualLandscapeOpen || (isLandscape && !hideLandscapeChart);
@@ -135,27 +140,20 @@ export default function WeatherApp() {
     };
   }, [isLandscapeMounted]);
 
+  const isLandscapeRef = useRef(isLandscape);
+  isLandscapeRef.current = isLandscape;
+
   const handleOpenLandscape = useCallback(() => {
     setManualLandscapeOpen(true);
     setHideLandscapeChart(false);
-    try {
-      if (typeof window !== 'undefined' && window.screen?.orientation && (window.screen.orientation as any).lock) {
-        (window.screen.orientation as any).lock('landscape').catch(() => {});
-      }
-    } catch (_) {}
   }, []);
 
   const handleCloseLandscape = useCallback(() => {
     setManualLandscapeOpen(false);
-    if (isLandscape) {
+    if (isLandscapeRef.current) {
       setHideLandscapeChart(true);
     }
-    try {
-      if (typeof window !== 'undefined' && window.screen?.orientation && (window.screen.orientation as any).unlock) {
-        (window.screen.orientation as any).unlock();
-      }
-    } catch (_) {}
-  }, [isLandscape]);
+  }, []);
 
   const mainRef = useRef<HTMLElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);

@@ -689,54 +689,64 @@ export function LandscapeChart({ city, weather, onClose, isManualOpen = false }:
   // Strict landscape enforcement: only rotate 90deg when manually opened in portrait mode (e.g. system auto-rotate locked)
   const isRotated = isManualOpen && isPortraitViewport;
 
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Try native Screen Orientation Lock to landscape if available
-    try {
-      if (screen.orientation && (screen.orientation as any).lock) {
-        (screen.orientation as any).lock('landscape').catch(() => {});
-      }
-    } catch (_) {}
-
     const handleOrientationCheck = () => {
-      setIsPortraitViewport(window.innerWidth < window.innerHeight);
-      setViewportDims({ w: window.innerWidth, h: window.innerHeight });
+      const updateDims = () => {
+        setIsPortraitViewport(window.innerWidth < window.innerHeight);
+        setViewportDims({ w: window.innerWidth, h: window.innerHeight });
+      };
+      updateDims();
+      // Multi-tick update to compensate for asynchronous viewport reflow on mobile rotation
+      const t1 = setTimeout(updateDims, 60);
+      const t2 = setTimeout(updateDims, 180);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     };
+
     window.addEventListener('resize', handleOrientationCheck);
     window.addEventListener('orientationchange', handleOrientationCheck);
 
     return () => {
       window.removeEventListener('resize', handleOrientationCheck);
       window.removeEventListener('orientationchange', handleOrientationCheck);
-      try {
-        if (screen.orientation && (screen.orientation as any).unlock) {
-          (screen.orientation as any).unlock();
-        }
-      } catch (_) {}
     };
   }, []);
 
   // Android Back Gesture & Browser Navigation handling:
-  // Push state on mount so that edge-swipe back navigation safely closes LandscapeChart
-  // instead of closing / exiting the PWA.
+  // Push state ONCE on mount so that edge-swipe back navigation safely closes LandscapeChart
+  // without triggering premature history.back() or closing on phone rotation.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const stateToken = `landscape-${Date.now()}`;
-    window.history.pushState({ landscapeOpen: true, stateToken }, '');
+    try {
+      window.history.pushState({ landscapeOpen: true, stateToken }, '');
+    } catch {}
 
+    let closedByPopState = false;
     const handlePopState = () => {
-      onClose();
+      closedByPopState = true;
+      onCloseRef.current();
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => {
       window.removeEventListener('popstate', handlePopState);
-      if (window.history.state?.stateToken === stateToken) {
-        window.history.back();
-      }
+      try {
+        if (!closedByPopState && window.history.state?.stateToken === stateToken) {
+          window.history.back();
+        }
+      } catch {}
     };
-  }, [onClose]);
+  }, []);
 
   // Auto-scroll to current hour ("Teraz") on mount (centered in viewport)
   useEffect(() => {
