@@ -156,6 +156,90 @@ export function getWindDisplay(speed: number, direction: number) {
   };
 }
 
+export interface WindColorTheme {
+  levelLabel: string;
+  textColor: string;
+  fillColor: string;
+  badgeBg: string;
+  badgeBorder: string;
+  bgGlow: string;
+  borderGlow: string;
+  shadowGlow: string;
+}
+
+export function getWindColorTheme(speedKmh: number, gustsKmh: number = 0): WindColorTheme {
+  const speed = Math.max(0, speedKmh || 0);
+  const gusts = Math.max(speed, gustsKmh || 0);
+
+  // Wichura / Sztorm (speed >= 55 km/h lub porywy >= 72 km/h)
+  if (speed >= 55 || gusts >= 72) {
+    return {
+      levelLabel: 'Wichura',
+      textColor: 'text-rose-400',
+      fillColor: 'fill-rose-400',
+      badgeBg: 'bg-rose-500/20',
+      badgeBorder: 'border-rose-400/40',
+      bgGlow: 'bg-rose-500/15',
+      borderGlow: 'border-rose-400/35',
+      shadowGlow: 'shadow-[0_0_12px_rgba(244,63,94,0.35)]',
+    };
+  }
+
+  // Silny wiatr (speed >= 38 km/h lub porywy >= 55 km/h)
+  if (speed >= 38 || gusts >= 55) {
+    return {
+      levelLabel: 'Silny wiatr',
+      textColor: 'text-orange-400',
+      fillColor: 'fill-orange-400',
+      badgeBg: 'bg-orange-500/20',
+      badgeBorder: 'border-orange-400/40',
+      bgGlow: 'bg-orange-500/15',
+      borderGlow: 'border-orange-400/35',
+      shadowGlow: 'shadow-[0_0_12px_rgba(251,146,60,0.3)]',
+    };
+  }
+
+  // Porywisty / dość silny wiatr (speed >= 25 km/h lub porywy >= 38 km/h)
+  if (speed >= 25 || gusts >= 38) {
+    return {
+      levelLabel: 'Porywisty',
+      textColor: 'text-amber-400',
+      fillColor: 'fill-amber-400',
+      badgeBg: 'bg-amber-500/20',
+      badgeBorder: 'border-amber-400/40',
+      bgGlow: 'bg-amber-500/15',
+      borderGlow: 'border-amber-400/35',
+      shadowGlow: 'shadow-[0_0_12px_rgba(251,191,36,0.3)]',
+    };
+  }
+
+  // Umiarkowany wiatr (speed >= 12 km/h lub porywy >= 22 km/h)
+  if (speed >= 12 || gusts >= 22) {
+    return {
+      levelLabel: 'Umiarkowany',
+      textColor: 'text-cyan-400',
+      fillColor: 'fill-cyan-400',
+      badgeBg: 'bg-cyan-500/20',
+      badgeBorder: 'border-cyan-400/40',
+      bgGlow: 'bg-cyan-500/15',
+      borderGlow: 'border-cyan-400/35',
+      shadowGlow: 'shadow-[0_0_12px_rgba(34,211,238,0.25)]',
+    };
+  }
+
+  // Łagodny / słaby wiatr (< 12 km/h)
+  return {
+    levelLabel: 'Łagodny',
+    textColor: 'text-emerald-400',
+    fillColor: 'fill-emerald-400',
+    badgeBg: 'bg-emerald-500/20',
+    badgeBorder: 'border-emerald-400/40',
+    bgGlow: 'bg-emerald-500/15',
+    borderGlow: 'border-emerald-400/35',
+    shadowGlow: 'shadow-[0_0_12px_rgba(16,185,129,0.25)]',
+  };
+}
+
 export function gpsDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371; 
   const dLat = (lat2 - lat1) * Math.PI / 180;

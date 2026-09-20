@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { City, HourlyData, DailyData, AirQualityData } from '@/lib/types';
-import { formatTemp, getWeatherStoryline, getWindDirectionDetails, getAqiStatus } from '@/lib/utils';
+import { formatTemp, getWeatherStoryline, getWindDirectionDetails, getAqiStatus, getWindColorTheme } from '@/lib/utils';
 import { getWeatherInfo } from '@/lib/weather-codes';
 import { WeatherIcon } from '@/components/ui/WeatherIcon';
-import { MapPin, Navigation2, Navigation, ArrowUp, ArrowDown, Wind, Sparkles, RefreshCw, Activity, ChevronDown, X, Bike } from 'lucide-react';
+import { MapPin, Navigation2, ArrowUp, ArrowDown, Wind, Sparkles, RefreshCw, Activity, ChevronDown, X, Bike } from 'lucide-react';
 import { getCyclingAnalysis } from '@/lib/cycling';
 
 interface HeroSectionProps {
@@ -95,6 +95,8 @@ function HeroSectionComponent({
   const windDir = hourlyData.winddirection_10m[currentIdx] || 0;
   const windGusts = Math.round(hourlyData.windgusts_10m?.[currentIdx] || windSpeed * 1.35);
   const windDirDetails = getWindDirectionDetails(windDir);
+  const windTheme = getWindColorTheme(windSpeed, windGusts);
+  const windArrowRotation = (windDir + 180) % 360;
 
   // 12-hour Wind and Gusts forecast
   const next12Wind = (() => {
@@ -326,29 +328,31 @@ function HeroSectionComponent({
           onClick={() => setExpandedCard(prev => prev === 'wind' ? null : 'wind')}
           className={`bg-white/[0.04] border flex items-center shadow-sm transition-all cursor-pointer active:scale-[0.98] px-2.5 py-2.5 gap-2 rounded-2xl ${
             expandedCard === 'wind'
-              ? 'border-blue-400/60 ring-1 ring-blue-400/40 bg-white/[0.08]'
-              : 'border-white/10 hover:border-blue-400/30'
+              ? `${windTheme.borderGlow} ring-1 ring-white/20 bg-white/[0.08]`
+              : 'border-white/10 hover:border-white/20'
           }`}
         >
-          <div className="w-11 h-11 rounded-full bg-blue-500/15 border border-blue-400/30 flex items-center justify-center shrink-0 relative shadow-[0_0_10px_rgba(59,130,246,0.25)] transition-all duration-300">
-            <Navigation
+          <div className={`w-11 h-11 rounded-full ${windTheme.bgGlow} border ${windTheme.borderGlow} ${windTheme.shadowGlow} flex items-center justify-center shrink-0 relative transition-all duration-300`}>
+            <Navigation2
               size={20}
-              style={{ transform: `rotate(${windDir}deg)` }}
-              className="fill-current text-blue-400 transition-transform duration-500"
+              style={{ transform: `rotate(${windArrowRotation}deg)` }}
+              className={`fill-current ${windTheme.textColor} transition-transform duration-500`}
             />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">Wiatr</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">
+                Wiatr &bull; {windDirDetails.code}
+              </span>
               <ChevronDown
                 size={12}
-                className={`text-zinc-500 transition-transform duration-200 ${expandedCard === 'wind' ? 'rotate-180 text-blue-400' : ''}`}
+                className={`text-zinc-500 transition-transform duration-200 ${expandedCard === 'wind' ? `rotate-180 ${windTheme.textColor}` : ''}`}
               />
             </div>
             <div className="text-lg font-extrabold text-white leading-tight mt-0.5">
               {Math.round(windSpeed)} <span className="text-[10px] font-normal text-zinc-400">km/h</span>
             </div>
-            <div className="text-[9px] font-bold text-cyan-300 truncate mt-0.5">
+            <div className={`text-[9px] font-bold truncate mt-0.5 ${windGusts > windSpeed ? windTheme.textColor : 'text-zinc-400'}`}>
               {windGusts > windSpeed ? `Porywy: ${windGusts} km/h` : 'Wiatr stabilny'}
             </div>
           </div>
@@ -419,15 +423,19 @@ function HeroSectionComponent({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {expandedCard === 'wind' ? (
-                  <Wind size={15} className="text-blue-400" />
+                  <Wind size={15} className={windTheme.textColor} />
                 ) : (
                   <Activity size={15} className="text-emerald-400" />
                 )}
                 <h4 className="text-xs font-bold text-white tracking-tight truncate">
                   {expandedCard === 'wind' ? 'Wiatr i porywy' : 'Jakość powietrza'}
                 </h4>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/10 text-zinc-300 border border-white/10 shrink-0">
-                  {expandedCard === 'wind' ? `${Math.round(windSpeed)} km/h` : `AQI ${Math.round(aqiValue)} • ${aqiStatus.label}`}
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${
+                  expandedCard === 'wind'
+                    ? `${windTheme.badgeBg} ${windTheme.badgeBorder} ${windTheme.textColor}`
+                    : 'bg-white/10 text-zinc-300 border-white/10'
+                }`}>
+                  {expandedCard === 'wind' ? `${Math.round(windSpeed)} km/h • ${windTheme.levelLabel}` : `AQI ${Math.round(aqiValue)} • ${aqiStatus.label}`}
                 </span>
               </div>
               <button
@@ -449,11 +457,25 @@ function HeroSectionComponent({
                   </div>
                   <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/5 flex flex-col">
                     <span className="text-[10px] text-zinc-400 uppercase font-bold">Maks. porywy</span>
-                    <span className="text-sm font-bold text-cyan-300 mt-0.5">{windGusts} km/h</span>
+                    <span className={`text-sm font-bold mt-0.5 ${windGusts > windSpeed ? windTheme.textColor : 'text-zinc-300'}`}>
+                      {windGusts} km/h
+                    </span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/5 flex flex-col">
                     <span className="text-[10px] text-zinc-400 uppercase font-bold">Kierunek</span>
-                    <span className="text-sm font-bold text-blue-300 mt-0.5">{windDirDetails.short} ({windDir}°)</span>
+                    <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                      <Navigation2
+                        size={12}
+                        style={{ transform: `rotate(${windArrowRotation}deg)` }}
+                        className={`fill-current ${windTheme.textColor} shrink-0`}
+                      />
+                      <span className="text-sm font-bold text-white truncate">
+                        {windDirDetails.code}
+                      </span>
+                      <span className="text-[10px] text-zinc-400 font-mono">
+                        {windDir}°
+                      </span>
+                    </div>
                   </div>
                 </div>
 

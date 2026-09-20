@@ -78,7 +78,7 @@ export function MetricDetailModal({
             <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/5 flex items-center justify-between text-xs">
               <span className="text-zinc-400">Kierunek wiatru</span>
               <div className="flex items-center gap-1.5 text-white font-semibold">
-                <span className="inline-block text-blue-400 font-bold" style={{ transform: `rotate(${dir}deg)` }}>↑</span>
+                <span className="inline-block text-blue-400 font-bold" style={{ transform: `rotate(${(dir + 180) % 360}deg)` }}>↑</span>
                 <span>{dir}°</span>
               </div>
             </div>
