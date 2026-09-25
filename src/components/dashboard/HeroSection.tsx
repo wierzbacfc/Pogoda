@@ -5,8 +5,24 @@ import { City, HourlyData, DailyData, AirQualityData } from '@/lib/types';
 import { formatTemp, getWeatherStoryline, getWindDirectionDetails, getAqiStatus, getWindColorTheme } from '@/lib/utils';
 import { getWeatherInfo } from '@/lib/weather-codes';
 import { WeatherIcon } from '@/components/ui/WeatherIcon';
-import { MapPin, Navigation2, ArrowUp, ArrowDown, Wind, Sparkles, RefreshCw, Activity, ChevronDown, X, Bike } from 'lucide-react';
-import { getCyclingAnalysis } from '@/lib/cycling';
+import {
+  MapPin,
+  Navigation2,
+  ArrowUp,
+  ArrowDown,
+  Wind,
+  Sparkles,
+  RefreshCw,
+  Activity,
+  ChevronDown,
+  X,
+  Bike,
+  Sunrise,
+  Sunset,
+  Droplets,
+  Clock,
+} from 'lucide-react';
+import { getCommuteAnalysis } from '@/lib/cycling';
 
 interface HeroSectionProps {
   city: City;
@@ -194,8 +210,8 @@ function HeroSectionComponent({
     ? { label: '↗ Pogorszenie', color: 'text-amber-400' }
     : { label: '→ Stabilna', color: 'text-cyan-400' };
 
-  // Cycling Analysis for Current + Next 3 Hours
-  const cyclingAnalysis = getCyclingAnalysis(hourlyData, currentIdx, airQuality);
+  // Commute Windows Analysis (6:00-9:00 & 14:00-17:00)
+  const commuteAnalysis = getCommuteAnalysis(hourlyData, currentIdx, airQuality);
 
   return (
     <div className="relative overflow-hidden bg-gradient-to-b from-zinc-900/80 via-zinc-900/60 to-zinc-950/80 backdrop-blur-2xl border border-white/15 shadow-[0_16px_48px_rgba(0,0,0,0.6)] flex flex-col p-4 sm:p-5 gap-3 rounded-3xl transition-all duration-300 ease-out glass-isolate">
@@ -611,66 +627,38 @@ function HeroSectionComponent({
         </div>
       )}
 
-      {/* Module 3: Cycling Bar (Ultra-compact) */}
+      {/* Module 3: Commute / Bike Bar (Minimal Height) */}
       <div
         onClick={() => setExpandedCard((prev) => (prev === 'bike' ? null : 'bike'))}
-        className={`bg-white/[0.04] border flex flex-col shadow-sm transition-all cursor-pointer active:scale-[0.99] px-3 py-2 gap-1.5 rounded-2xl mt-1 ${
+        className={`bg-white/[0.04] border flex items-center justify-between shadow-sm transition-all cursor-pointer active:scale-[0.99] px-3 py-1.5 rounded-2xl mt-1 min-h-[36px] ${
           expandedCard === 'bike'
             ? 'border-emerald-400/60 ring-1 ring-emerald-400/40 bg-white/[0.08]'
             : 'border-white/10 hover:border-emerald-400/30'
         }`}
       >
-        {/* Row 1: Icon + Title + Badge + Headline + Score + Chevron */}
-        <div className="flex items-center justify-between gap-1.5">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <div className="w-5 h-5 rounded-md bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.2)]">
-              <Bike size={12} className="text-emerald-400" />
-            </div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-300 shrink-0">
-              Rower
-            </span>
-            <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded border leading-none shrink-0 ${cyclingAnalysis.badgeBg} ${cyclingAnalysis.badgeBorder} ${cyclingAnalysis.badgeText}`}>
-              {cyclingAnalysis.overallLabel}
-            </span>
-            <span className="text-[10px] text-zinc-400 truncate">
-              {cyclingAnalysis.headline}
-            </span>
+        {/* Left Side: Bike Icon + Context Title + Verdict Badge */}
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-5 h-5 rounded-md bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.2)]">
+            <Bike size={12} className="text-emerald-400" />
           </div>
-
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-[10px] font-bold text-zinc-300 tabular-nums">
-              {cyclingAnalysis.overallScore}<span className="text-[8px] font-normal text-zinc-500">/100</span>
-            </span>
-            <ChevronDown
-              size={12}
-              className={`text-zinc-500 transition-transform duration-200 ${
-                expandedCard === 'bike' ? 'rotate-180 text-emerald-400' : ''
-              }`}
-            />
-          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-300 truncate">
+            Rower &bull; {commuteAnalysis.contextTitle}
+          </span>
+          <span
+            className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded border leading-none shrink-0 ${commuteAnalysis.badgeBg} ${commuteAnalysis.badgeBorder} ${commuteAnalysis.badgeText}`}
+          >
+            {commuteAnalysis.overallVerdict}
+          </span>
         </div>
 
-        {/* Row 2: 4-hour Timeline Ribbon & Inline Labels */}
-        <div className="flex flex-col gap-1">
-          <div className="w-full h-1.5 rounded-full overflow-hidden flex gap-1 p-[1px] bg-black/40 border border-white/5">
-            {cyclingAnalysis.all4Hours.map((hour, idx) => (
-              <div
-                key={idx}
-                className={`flex-1 h-full rounded-full bg-gradient-to-r ${hour.gradient} transition-all duration-300`}
-                title={`${hour.hourLabel}: ${hour.label} (${hour.score} pkt)`}
-              />
-            ))}
-          </div>
-
-          <div className="grid grid-cols-4 text-center text-[9px] tabular-nums leading-none pt-0.5">
-            {cyclingAnalysis.all4Hours.map((hour, idx) => (
-              <div key={idx} className="flex items-center justify-center gap-1">
-                <span className={`w-1 h-1 rounded-full shrink-0 ${hour.dotColor}`} />
-                <span className="font-semibold text-zinc-300">{hour.hourLabel}</span>
-                <span className="text-zinc-400">{hour.temp}°</span>
-              </div>
-            ))}
-          </div>
+        {/* Right Side: Subtle Expand Chevron */}
+        <div className="flex items-center gap-1 shrink-0 ml-2">
+          <ChevronDown
+            size={13}
+            className={`transition-transform duration-200 ${
+              expandedCard === 'bike' ? 'rotate-180 text-emerald-400' : 'text-zinc-400'
+            }`}
+          />
         </div>
       </div>
 
@@ -690,16 +678,18 @@ function HeroSectionComponent({
             style={{ left: '24px', transform: 'translateX(-50%)' }}
           />
 
-          <div className="rounded-2xl bg-zinc-950/90 backdrop-blur-2xl border border-white/20 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.7)] flex flex-col gap-3">
+          <div className="rounded-2xl bg-zinc-950/90 backdrop-blur-2xl border border-white/20 p-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.7)] flex flex-col gap-3">
             {/* Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Bike size={15} className="text-emerald-400" />
                 <h4 className="text-xs font-bold text-white tracking-tight truncate">
-                  Prognoza dla rowerzystów
+                  Rower &bull; {commuteAnalysis.contextTitle}
                 </h4>
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${cyclingAnalysis.badgeBg} ${cyclingAnalysis.badgeBorder} ${cyclingAnalysis.badgeText}`}>
-                  {cyclingAnalysis.overallScore}/100 • {cyclingAnalysis.overallLabel}
+                <span
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${commuteAnalysis.badgeBg} ${commuteAnalysis.badgeBorder} ${commuteAnalysis.badgeText}`}
+                >
+                  {commuteAnalysis.overallVerdict}
                 </span>
               </div>
               <button
@@ -711,72 +701,143 @@ function HeroSectionComponent({
               </button>
             </div>
 
-            {/* Dynamic Advice & Outlook */}
-            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col gap-1.5">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-white">
-                <Sparkles size={13} className="text-amber-400 shrink-0" />
-                <span>{cyclingAnalysis.headline}</span>
-              </div>
-              <p className="text-xs text-zinc-300 leading-relaxed">
-                {cyclingAnalysis.advice}
-              </p>
-            </div>
-
-            {/* Recommended Gear & Clothing */}
-            {cyclingAnalysis.gearRecommendations.length > 0 && (
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                  Zalecany ubiór i wyposażenie
+            {/* Section 1: Najbliższe godziny (kolejne 4h) */}
+            <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                  <Clock size={11} className="text-emerald-400" />
+                  Najbliższe godziny
                 </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {cyclingAnalysis.gearRecommendations.map((gear, idx) => (
-                    <span
-                      key={idx}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/10 text-xs text-zinc-200"
-                    >
-                      <span>{gear.icon}</span>
-                      <span className="font-medium text-[11px]">{gear.label}</span>
-                    </span>
-                  ))}
-                </div>
+                <span className="text-[9px] text-zinc-400 font-mono">
+                  Bieżące warunki
+                </span>
               </div>
-            )}
 
-            {/* 4-Hour Detailed Breakdown Cards */}
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                Analiza godzinowa (kolejne 3h)
-              </span>
-              <div className="grid grid-cols-4 gap-1.5">
-                {cyclingAnalysis.all4Hours.map((h, idx) => (
+              {/* 4-Column Immediate Hours Grid */}
+              <div className="grid grid-cols-4 gap-1.5 pt-0.5">
+                {commuteAnalysis.immediateHours.map((h, hIdx) => (
                   <div
-                    key={idx}
-                    className="p-2 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col justify-between text-center min-w-0"
+                    key={hIdx}
+                    className="p-1.5 rounded-lg bg-white/[0.03] border border-white/5 flex flex-col items-center justify-between text-center min-w-0"
                   >
-                    <div>
-                      <div className="flex items-center justify-center gap-1 mb-1">
-                        <span className={`w-1.5 h-1.5 rounded-full ${h.dotColor}`} />
-                        <span className="text-[10px] font-bold text-white tabular-nums">
-                          {h.hourLabel}
-                        </span>
-                      </div>
-                      <div className={`text-[9px] font-extrabold px-1 py-0.5 rounded border mb-1 truncate ${h.badgeColor}`}>
-                        {h.label}
-                      </div>
+                    <span className="text-[10px] font-bold text-white font-mono leading-none">
+                      {h.timeStr}
+                    </span>
+
+                    <div className="my-1">
+                      <WeatherIcon code={h.weatherCode} isDay={h.isDay} size={20} />
                     </div>
 
-                    <div className="flex flex-col gap-0.5 text-[9px] text-zinc-400 mt-1 border-t border-white/5 pt-1">
-                      <span className="text-white font-bold tabular-nums">{h.feelsLike}°</span>
-                      <span className="truncate">{h.windSpeed} km/h</span>
-                      {h.precipitation > 0 ? (
-                        <span className="text-cyan-300 font-bold">{h.precipitation.toFixed(1)}mm</span>
-                      ) : (
-                        <span className="text-zinc-500">0 mm</span>
-                      )}
+                    <span className="text-[11px] font-extrabold text-white tabular-nums leading-none">
+                      {h.temp}°
+                    </span>
+                    <span className="text-[8px] text-zinc-400 leading-tight mb-1">
+                      odcz. {h.feelsLike}°
+                    </span>
+
+                    {/* Precipitation Visual Badge */}
+                    <div
+                      className={`w-full py-0.5 px-1 rounded flex items-center justify-center gap-0.5 text-[8px] font-mono font-bold leading-none ${
+                        h.precipitation > 0
+                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30'
+                          : 'bg-white/[0.02] text-zinc-400 border border-white/5'
+                      }`}
+                      title={`Opady: ${h.precipitation} mm, szansa: ${h.precipProb}%`}
+                    >
+                      <Droplets size={7} className={h.precipitation > 0 ? 'text-cyan-300 shrink-0' : 'text-zinc-500 shrink-0'} />
+                      <span>
+                        {h.precipitation > 0 ? `${h.precipitation}mm` : '0 mm'}
+                      </span>
                     </div>
+
+                    {/* Wind */}
+                    <span className="text-[8px] text-zinc-400 font-mono mt-0.5 truncate">
+                      💨 {h.windSpeed} km/h
+                    </span>
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Section 2: Okna dojazdów (Commute Windows) */}
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                <Bike size={11} className="text-blue-400" />
+                Okna dojazdów &bull; {commuteAnalysis.targetDateFormatted}
+              </span>
+
+              {commuteAnalysis.windows.map((win, wIdx) => {
+                const WinIcon = win.type === 'morning' ? Sunrise : Sunset;
+                return (
+                  <div
+                    key={wIdx}
+                    className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col gap-1.5"
+                  >
+                    {/* Window Title & Status Badge */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <WinIcon size={13} className={win.type === 'morning' ? 'text-amber-400 shrink-0' : 'text-orange-400 shrink-0'} />
+                        <span className="text-[11px] font-bold text-white truncate">
+                          {win.title}
+                        </span>
+                        <span className="text-[10px] font-mono text-zinc-400">
+                          ({win.timeRange})
+                        </span>
+                      </div>
+                      <span
+                        className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded border leading-none shrink-0 ${win.badgeBg} ${win.badgeBorder} ${win.badgeText}`}
+                      >
+                        {win.verdictLabel}
+                      </span>
+                    </div>
+
+                    {/* 4-Hour Visual Grid */}
+                    <div className="grid grid-cols-4 gap-1.5 pt-0.5">
+                      {win.hours.map((h, hIdx) => (
+                        <div
+                          key={hIdx}
+                          className="p-1.5 rounded-lg bg-white/[0.03] border border-white/5 flex flex-col items-center justify-between text-center min-w-0"
+                        >
+                          <span className="text-[10px] font-bold text-white font-mono leading-none">
+                            {h.timeStr}
+                          </span>
+
+                          <div className="my-1">
+                            <WeatherIcon code={h.weatherCode} isDay={h.isDay} size={20} />
+                          </div>
+
+                          <span className="text-[11px] font-extrabold text-white tabular-nums leading-none">
+                            {h.temp}°
+                          </span>
+                          <span className="text-[8px] text-zinc-400 leading-tight mb-1">
+                            odcz. {h.feelsLike}°
+                          </span>
+
+                          {/* Precipitation Visual Badge */}
+                          <div
+                            className={`w-full py-0.5 px-1 rounded flex items-center justify-center gap-0.5 text-[8px] font-mono font-bold leading-none ${
+                              h.precipitation > 0
+                                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30'
+                                : 'bg-white/[0.02] text-zinc-400 border border-white/5'
+                            }`}
+                            title={`Opady: ${h.precipitation} mm, szansa: ${h.precipProb}%`}
+                          >
+                            <Droplets size={7} className={h.precipitation > 0 ? 'text-cyan-300 shrink-0' : 'text-zinc-500 shrink-0'} />
+                            <span>
+                              {h.precipitation > 0 ? `${h.precipitation}mm` : '0 mm'}
+                            </span>
+                          </div>
+
+                          {/* Wind Speed */}
+                          <span className="text-[8px] text-zinc-400 font-mono mt-0.5 truncate">
+                            💨 {h.windSpeed} km/h
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
