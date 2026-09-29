@@ -86,9 +86,50 @@ const INITIAL_CITIES: City[] = [
   },
 ];
 
+const LAST_ACTIVE_CITY_KEY = 'wpwa_last_active_city_id';
+
 export default function WeatherApp() {
   const [savedCities, setSavedCities] = useLocalStorage<City[]>('wpwa_cities', INITIAL_CITIES);
-  const [activeCityIndex, setActiveCityIndex] = useState(0);
+
+  // GPS with instant fallback to Poznań
+  const { coords, cityName, retry: retryGps } = useGeolocation();
+
+  // Live GPS city (initialized from localStorage cached coords to prevent location flap)
+  const [gpsCityLive, setGpsCityLive] = useState<City>(getInitialGpsCity);
+
+  useEffect(() => {
+    if (coords) {
+      setGpsCityLive(prev => ({
+        ...prev,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        subtitle: cityName || prev.subtitle || 'Lokalizacja GPS',
+      }));
+    }
+  }, [coords, cityName]);
+
+  // Unique cities list: ensure no duplicate IDs
+  const cities: City[] = [
+    gpsCityLive,
+    ...(savedCities || []).filter(c => c.id !== gpsCityLive.id),
+  ].filter((city, index, self) => index === self.findIndex(t => t.id === city.id));
+
+  // Restore last active city synchronously from localStorage so UI mounts on the exact city
+  const [activeCityIndex, setActiveCityIndex] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const lastActiveId = localStorage.getItem(LAST_ACTIVE_CITY_KEY);
+        if (lastActiveId !== null) {
+          const foundIdx = cities.findIndex(c => String(c.id) === String(lastActiveId));
+          if (foundIdx !== -1) {
+            return foundIdx;
+          }
+        }
+      } catch (_) {}
+    }
+    return 0;
+  });
+
   const [citiesSheetOpen, setCitiesSheetOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const { toasts, showToast, dismissToast } = useToast();
@@ -168,14 +209,27 @@ export default function WeatherApp() {
   const containerWidthRef = useRef<number>(392);
   const rafIdRef = useRef<number | null>(null);
 
-  // Synchronize track position when activeCityIndex changes
+  // Synchronize track position and persist last active city when activeCityIndex changes
   useEffect(() => {
     activeCityIndexRef.current = activeCityIndex;
+    const currentCity = cities[activeCityIndex];
+    if (currentCity && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(LAST_ACTIVE_CITY_KEY, String(currentCity.id));
+      } catch (_) {}
+    }
     if (trackRef.current && !isSwipingRef.current) {
       trackRef.current.style.transition = 'none';
       trackRef.current.style.transform = `translate3d(${-activeCityIndex * 100}%, 0, 0)`;
     }
-  }, [activeCityIndex]);
+  }, [activeCityIndex, cities]);
+
+  // Clamp active index if cities array shrinks
+  useEffect(() => {
+    if (activeCityIndex >= cities.length && cities.length > 0) {
+      setActiveCityIndex(cities.length - 1);
+    }
+  }, [cities.length, activeCityIndex]);
 
   // Native non-passive touch listener to prevent vertical scroll jitter during horizontal swipe
   useEffect(() => {
@@ -200,29 +254,6 @@ export default function WeatherApp() {
   const [pullDistance, setPullDistance] = useState(0);
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
   const pullStartRef = useRef<{ y: number; active: boolean }>({ y: 0, active: false });
-
-  // GPS with instant fallback to Poznań
-  const { coords, cityName, retry: retryGps } = useGeolocation();
-
-  // Live GPS city (initialized from localStorage cached coords to prevent location flap)
-  const [gpsCityLive, setGpsCityLive] = useState<City>(getInitialGpsCity);
-
-  useEffect(() => {
-    if (coords) {
-      setGpsCityLive(prev => ({
-        ...prev,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        subtitle: cityName || prev.subtitle || 'Lokalizacja GPS',
-      }));
-    }
-  }, [coords, cityName]);
-
-  // Unique cities list: ensure no duplicate IDs
-  const cities: City[] = [
-    gpsCityLive,
-    ...(savedCities || []).filter(c => c.id !== gpsCityLive.id),
-  ].filter((city, index, self) => index === self.findIndex(t => t.id === city.id));
 
   // Weather data
   const gpsCoordsReady = true; // Always ready with Poznań fallback

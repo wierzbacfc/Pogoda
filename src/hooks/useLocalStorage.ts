@@ -3,11 +3,21 @@
 import { useState, useEffect, useCallback } from 'react';
 
 export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T | ((prev: T) => T)) => void, () => void] {
-  const [value, setValue] = useState<T>(defaultValue);
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [value, setValue] = useState<T>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const item = window.localStorage.getItem(key);
+        if (item !== null) {
+          return JSON.parse(item);
+        }
+      } catch (error) {
+        console.error(`Error reading localStorage key "${key}":`, error);
+      }
+    }
+    return defaultValue;
+  });
 
   useEffect(() => {
-    setIsHydrated(true);
     try {
       const item = window.localStorage.getItem(key);
       if (item !== null) {
@@ -59,5 +69,5 @@ export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T 
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [key, defaultValue]);
 
-  return [isHydrated ? value : defaultValue, setItem, removeItem];
+  return [value, setItem, removeItem];
 }

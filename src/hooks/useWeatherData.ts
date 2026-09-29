@@ -12,26 +12,60 @@ function loadInitialWeatherCache(cities: City[]): Map<string | number, WeatherRe
   if (typeof window === 'undefined') return map;
 
   try {
+    // 1. Direct match for current cities
     for (const city of cities) {
-      if (city.latitude === null || city.longitude === null) continue;
       const cacheKey = `wpwa_weather_${city.id}`;
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed.data && parsed.data.hourly?.time?.length > 0) {
-          map.set(city.id, {
-            hourly: parsed.data.hourly,
-            daily: parsed.data.daily,
-            timezone: parsed.data.timezone,
-            utc_offset_seconds: parsed.data.utc_offset_seconds,
-            airQuality: parsed.airQuality || undefined,
-            meta: {
-              fetchedAt: parsed.timestamp || Date.now(),
-              fromCache: true,
-              lat: city.latitude,
-              lon: city.longitude,
-            },
-          });
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed.data && parsed.data.hourly?.time?.length > 0) {
+            map.set(city.id, {
+              hourly: parsed.data.hourly,
+              daily: parsed.data.daily,
+              timezone: parsed.data.timezone,
+              utc_offset_seconds: parsed.data.utc_offset_seconds,
+              airQuality: parsed.airQuality || undefined,
+              meta: {
+                fetchedAt: parsed.timestamp || Date.now(),
+                fromCache: true,
+                lat: city.latitude ?? 0,
+                lon: city.longitude ?? 0,
+              },
+            });
+          }
+        } catch (_) {}
+      }
+    }
+
+    // 2. Scan all wpwa_weather_ keys to ensure no cached city is missed
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('wpwa_weather_')) {
+        const rawId = key.replace('wpwa_weather_', '');
+        const cityId = rawId === 'gps' ? 'gps' : (isNaN(Number(rawId)) ? rawId : Number(rawId));
+        if (!map.has(cityId)) {
+          const cached = localStorage.getItem(key);
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              if (parsed.data && parsed.data.hourly?.time?.length > 0) {
+                map.set(cityId, {
+                  hourly: parsed.data.hourly,
+                  daily: parsed.data.daily,
+                  timezone: parsed.data.timezone,
+                  utc_offset_seconds: parsed.data.utc_offset_seconds,
+                  airQuality: parsed.airQuality || undefined,
+                  meta: {
+                    fetchedAt: parsed.timestamp || Date.now(),
+                    fromCache: true,
+                    lat: parsed.coords?.latitude ?? 0,
+                    lon: parsed.coords?.longitude ?? 0,
+                  },
+                });
+              }
+            } catch (_) {}
+          }
         }
       }
     }
