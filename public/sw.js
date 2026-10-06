@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pogoda-pwa-v65';
+const CACHE_NAME = 'pogoda-pwa-v66';
 
 const STATIC_ASSETS = [
   './',

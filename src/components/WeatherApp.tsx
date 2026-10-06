@@ -31,6 +31,11 @@ const LandscapeChart = dynamic(
   { ssr: false }
 );
 
+const SolarHorizonModal = dynamic(
+  () => import('@/components/solar/SolarHorizonModal'),
+  { ssr: false }
+);
+
 const GPS_CITY: City = {
   id: 'gps',
   name: 'Twoja lokalizacja',
@@ -132,6 +137,7 @@ export default function WeatherApp() {
 
   const [citiesSheetOpen, setCitiesSheetOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [solarModalOpen, setSolarModalOpen] = useState(false);
   const { toasts, showToast, dismissToast } = useToast();
   
   const isLandscape = useLandscape();
@@ -729,7 +735,7 @@ export default function WeatherApp() {
           </div>
         </main>
 
-        {/* Minimalist Bottom Toolbar: Landscape Button | Centered CityDots with Scrubber | Right List Button */}
+        {/* Minimalist Bottom Toolbar: Landscape Button | Centered CityDots with Scrubber | Solar Ray Button | Right List Button */}
         <BottomToolbar
           cities={cities}
           weatherMap={weatherMap}
@@ -738,6 +744,7 @@ export default function WeatherApp() {
           onSelectCity={handleSelectCity}
           onOpenCities={() => setCitiesSheetOpen(true)}
           onOpenLandscape={handleOpenLandscape}
+          onOpenSolarHorizon={() => setSolarModalOpen(true)}
         />
 
         {/* Fluid Cities Bottom Sheet with integrated search and settings button */}
@@ -777,6 +784,13 @@ export default function WeatherApp() {
           citiesCount={cities.length}
           onClearCache={() => refreshAll()}
           showToast={showToast}
+        />
+
+        {/* Dedicated Solar Horizon & Sun Ray Tracer Modal */}
+        <SolarHorizonModal
+          isOpen={solarModalOpen}
+          onClose={() => setSolarModalOpen(false)}
+          city={activeCity}
         />
       </div>
 

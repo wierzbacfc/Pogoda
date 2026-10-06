@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Menu, BarChart3 } from 'lucide-react';
+import { Menu, BarChart3, Sun } from 'lucide-react';
 import { City, WeatherResult } from '@/lib/types';
 import { CityDots } from './dashboard/CityDots';
 import { CityScrubberHUD } from './dashboard/CityScrubberHUD';
@@ -14,6 +14,7 @@ interface BottomToolbarProps {
   onSelectCity: (index: number) => void;
   onOpenCities: () => void;
   onOpenLandscape?: () => void;
+  onOpenSolarHorizon?: () => void;
 }
 
 function BottomToolbarComponent({
@@ -24,6 +25,7 @@ function BottomToolbarComponent({
   onSelectCity,
   onOpenCities,
   onOpenLandscape,
+  onOpenSolarHorizon,
 }: BottomToolbarProps) {
   const count = cities.length > 0 ? cities.length : (cityCount || 1);
   const [isScrubbing, setIsScrubbing] = useState(false);
@@ -244,18 +246,32 @@ function BottomToolbarComponent({
           />
         </div>
 
-        {/* Right: Cities List Button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenCities();
-          }}
-          className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 active:scale-90 border border-white/15 flex items-center justify-center text-white transition-all shrink-0 shadow-md"
-          title="Lista miast"
-          aria-label="Lista miast"
-        >
-          <Menu size={18} strokeWidth={2.2} />
-        </button>
+        {/* Right Buttons: Solar Horizon Button + Cities List Button */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenSolarHorizon?.();
+            }}
+            className="w-10 h-10 rounded-full bg-amber-500/15 hover:bg-amber-500/25 active:scale-90 border border-amber-400/35 flex items-center justify-center text-amber-300 transition-all shadow-[0_0_14px_rgba(251,191,36,0.2)] cursor-pointer"
+            title="Promień Słońca i Horyzont"
+            aria-label="Promień Słońca i Horyzont"
+          >
+            <Sun size={18} strokeWidth={2.3} className="text-amber-400" />
+          </button>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenCities();
+            }}
+            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 active:scale-90 border border-white/15 flex items-center justify-center text-white transition-all shadow-md cursor-pointer"
+            title="Lista miast"
+            aria-label="Lista miast"
+          >
+            <Menu size={18} strokeWidth={2.2} />
+          </button>
+        </div>
       </div>
     </div>
   );
