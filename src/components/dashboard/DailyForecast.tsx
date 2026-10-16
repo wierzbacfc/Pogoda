@@ -4,6 +4,7 @@ import { useState, memo } from 'react';
 import { DailyData, HourlyData } from '@/lib/types';
 import { getDayLabel, getDateKeyFromHour, isWeekendDay } from '@/lib/utils';
 import { WeatherIcon } from '@/components/ui/WeatherIcon';
+import { getRepresentativeDailyWeatherCode } from '@/lib/weather-codes';
 import { Calendar, ChevronDown, ChevronRight } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -69,7 +70,7 @@ function DailyForecastComponent({ dailyData, hourlyData, currentIdx, dailyStartI
           const dateStr = dailyData.time[idx];
           const minTemp = dailyData.temperature_2m_min[idx];
           const maxTemp = dailyData.temperature_2m_max[idx];
-          const weatherCode = dailyData.weathercode[idx];
+          const weatherCode = getRepresentativeDailyWeatherCode(dateStr, idx, dailyData, hourlyData);
           const precipProb = dailyData.precipitation_probability_max?.[idx] || 0;
           const precipSum = dailyData.precipitation_sum?.[idx] ?? 0;
           const isToday = i === 0;

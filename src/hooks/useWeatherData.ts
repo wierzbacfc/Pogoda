@@ -3,9 +3,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchWeatherData, fetchAirQuality } from '@/lib/api';
 import { gpsDistance } from '@/lib/utils';
+import { refineDailyWeatherCodes } from '@/lib/weather-codes';
 import type { City, WeatherResult } from '@/lib/types';
 
 const CACHE_TTL = 600_000; // 10 minutes
+
+function sanitizeCachedData(data: any) {
+  if (data?.hourly?.time?.length > 0 && data?.daily) {
+    data.daily.weathercode = refineDailyWeatherCodes(data.hourly, data.daily);
+  }
+}
 
 function loadInitialWeatherCache(cities: City[]): Map<string | number, WeatherResult> {
   const map = new Map<string | number, WeatherResult>();
@@ -19,6 +26,7 @@ function loadInitialWeatherCache(cities: City[]): Map<string | number, WeatherRe
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
+          sanitizeCachedData(parsed.data);
           if (parsed.data && parsed.data.hourly?.time?.length > 0) {
             map.set(city.id, {
               hourly: parsed.data.hourly,
@@ -49,6 +57,7 @@ function loadInitialWeatherCache(cities: City[]): Map<string | number, WeatherRe
           if (cached) {
             try {
               const parsed = JSON.parse(cached);
+              sanitizeCachedData(parsed.data);
               if (parsed.data && parsed.data.hourly?.time?.length > 0) {
                 map.set(cityId, {
                   hourly: parsed.data.hourly,
@@ -100,6 +109,7 @@ export function useWeatherData(cities: City[], gpsCoordsReady: boolean) {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
         const parsed = JSON.parse(cached);
+        sanitizeCachedData(parsed.data);
         // Zawsze pokazujemy dane z cache od razu, by przyspieszyć start aplikacji
         if (parsed.data && parsed.data.hourly?.time?.length > 0) {
           const fetchedAt = parsed.timestamp || 0;
@@ -177,6 +187,7 @@ export function useWeatherData(cities: City[], gpsCoordsReady: boolean) {
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
           const parsed = JSON.parse(cached);
+          sanitizeCachedData(parsed.data);
           if (parsed.data && parsed.data.hourly?.time?.length > 0) {
             const result: WeatherResult = {
               hourly: parsed.data.hourly,
@@ -246,6 +257,7 @@ export function useWeatherData(cities: City[], gpsCoordsReady: boolean) {
           if (cached) {
             try {
               const parsed = JSON.parse(cached);
+              sanitizeCachedData(parsed.data);
               if (parsed.data?.hourly?.time?.length > 0) {
                 nextMap.set(city.id, {
                   hourly: parsed.data.hourly,

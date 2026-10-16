@@ -1,4 +1,5 @@
 import { GeocodingResult, OpenMeteoResponse, AirQualityData } from './types';
+import { refineDailyWeatherCodes } from './weather-codes';
 
 const GEO_BASE = 'https://geocoding-api.open-meteo.com/v1';
 const WEATHER_BASE = 'https://api.open-meteo.com/v1';
@@ -43,8 +44,12 @@ export async function fetchWeatherData(lat: number, lon: number): Promise<OpenMe
   if (!res.ok) {
     throw new Error('Failed to fetch weather data');
   }
-  
-  return res.json();
+
+  const data: OpenMeteoResponse = await res.json();
+  if (data.hourly && data.daily) {
+    data.daily.weathercode = refineDailyWeatherCodes(data.hourly, data.daily);
+  }
+  return data;
 }
 
 export async function fetchAirQuality(lat: number, lon: number): Promise<AirQualityData | null> {
