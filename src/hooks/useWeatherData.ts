@@ -3,14 +3,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchWeatherData, fetchAirQuality } from '@/lib/api';
 import { gpsDistance } from '@/lib/utils';
-import { refineDailyWeatherCodes } from '@/lib/weather-codes';
+import { refineDailyWeatherCodes, refineHourlyWeatherData } from '@/lib/weather-codes';
 import type { City, WeatherResult } from '@/lib/types';
 
 const CACHE_TTL = 600_000; // 10 minutes
 
 function sanitizeCachedData(data: any) {
-  if (data?.hourly?.time?.length > 0 && data?.daily) {
-    data.daily.weathercode = refineDailyWeatherCodes(data.hourly, data.daily);
+  if (data?.hourly?.time?.length > 0) {
+    refineHourlyWeatherData(data.hourly);
+    if (data?.daily) {
+      data.daily.weathercode = refineDailyWeatherCodes(data.hourly, data.daily);
+    }
   }
 }
 

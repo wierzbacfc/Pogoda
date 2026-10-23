@@ -1,5 +1,5 @@
 import { GeocodingResult, OpenMeteoResponse, AirQualityData } from './types';
-import { refineDailyWeatherCodes } from './weather-codes';
+import { refineDailyWeatherCodes, refineHourlyWeatherData } from './weather-codes';
 
 const GEO_BASE = 'https://geocoding-api.open-meteo.com/v1';
 const WEATHER_BASE = 'https://api.open-meteo.com/v1';
@@ -36,17 +36,24 @@ export async function fetchWeatherData(lat: number, lon: number): Promise<OpenMe
     'daily',
     'weathercode,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,precipitation_probability_max,windspeed_10m_max,winddirection_10m_dominant,sunrise,sunset,uv_index_max'
   );
+  url.searchParams.append('models', 'dwd_icon');
   url.searchParams.append('timezone', 'auto');
   url.searchParams.append('forecast_days', '15');
   url.searchParams.append('wind_speed_unit', 'kmh');
   
-  const res = await fetch(url.toString());
+  let res = await fetch(url.toString());
+  // Fallback do modelu domyślnego w razie problemów z dwd_icon
+  if (!res.ok && url.searchParams.has('models')) {
+    url.searchParams.delete('models');
+    res = await fetch(url.toString());
+  }
   if (!res.ok) {
     throw new Error('Failed to fetch weather data');
   }
 
   const data: OpenMeteoResponse = await res.json();
   if (data.hourly && data.daily) {
+    refineHourlyWeatherData(data.hourly);
     data.daily.weathercode = refineDailyWeatherCodes(data.hourly, data.daily);
   }
   return data;

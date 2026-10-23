@@ -272,3 +272,51 @@ export function refineDailyWeatherCodes(hourly: HourlyData, daily: DailyData): n
     return getRepresentativeDailyWeatherCode(dateStr, idx, daily, hourly);
   });
 }
+
+/**
+ * Udoskonala dane godzinowe (kod pogody oraz zachmurzenie efektywne).
+ *
+ * Modele numeryczne często zawyżają zachmurzenie całkowite (cloudcover),
+ * sumując cienkie, półprzeźroczyste chmury wysokie (cirrusy na 10 km)
+ * tak, jakby były ciemnymi chmurami deszczowymi (np. dając 96% chmur i kod 3 - Pochmurno),
+ * mimo że na ziemi świeci ostre słońce, cienie są wyraźne, a widzialność wynosi ponad 10 km (CAVOK).
+ *
+ * Funkcja ta przelicza optyczne, efektywne zachmurzenie (uwzględniając transparentność cirrusów)
+ * oraz koryguje fałszywy kod 3 (Pochmurno) na kod 1 (Głównie słonecznie) lub 2 (Częściowe zachmurzenie),
+ * gdy w atmosferze brak chmur niskich i średnich oraz nie występują żadne opady.
+ */
+export function refineHourlyWeatherData(hourly: HourlyData): void {
+  if (!hourly || !hourly.time) return;
+
+  for (let i = 0; i < hourly.time.length; i++) {
+    const low = hourly.cloud_cover_low?.[i] ?? 0;
+    const mid = hourly.cloud_cover_mid?.[i] ?? 0;
+    const high = hourly.cloud_cover_high?.[i] ?? 0;
+    const precip = hourly.precipitation?.[i] ?? 0;
+    const rawCode = hourly.weathercode[i];
+    const rawCloud = hourly.cloudcover?.[i] ?? 0;
+
+    // Optyczne, efektywne przesłonięcie słońca:
+    // Chmury niskie (stratus/cumulus) blokują niemal 100% światła (waga 1.0),
+    // chmury średnie (altocumulus) blokują ok. 70% światła (waga 0.7),
+    // chmury wysokie (cirrusy z kryształków lodu) są w 70-80% transparentne dla słońca (waga 0.3).
+    const effectiveCloud = Math.round(
+      100 * (1 - (1 - low / 100) * (1 - (mid / 100) * 0.7) * (1 - (high / 100) * 0.3))
+    );
+
+    // Gdy brak opadów, a model wyznaczył kod 3 (Pochmurno), lecz grube chmury (niskie/średnie) nie dominują:
+    if (precip < 0.1 && rawCode === 3) {
+      if (effectiveCloud < 35) {
+        hourly.weathercode[i] = 1; // Głównie bezchmurnie / Słonecznie
+      } else if (effectiveCloud < 75) {
+        hourly.weathercode[i] = 2; // Częściowe zachmurzenie (słońce z chmurą)
+      }
+    }
+
+    // Korekta wartości cloudcover gdy była sztucznie zawyżona przez samą warstwę cirrusów:
+    if (hourly.cloudcover && rawCloud >= 50 && effectiveCloud < rawCloud - 15 && precip < 0.1 && (low + mid) < 70) {
+      hourly.cloudcover[i] = Math.max(0, Math.min(100, effectiveCloud));
+    }
+  }
+}
+
